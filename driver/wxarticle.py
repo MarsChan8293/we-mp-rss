@@ -254,15 +254,15 @@ class WXArticleFetcher:
                 "biz": "",
                 }
             }
-        self.controller.start_browser()
-       
-        self.page = self.controller.page
-        print_warning(f"Get:{url} Wait:{self.wait_timeout}")
-        self.controller.open_url(url)
-        page = self.page
-        content=""
-        
         try:
+            self.controller.start_browser()
+        
+            self.page = self.controller.page
+            print_warning(f"Get:{url} Wait:{self.wait_timeout}")
+            self.controller.open_url(url)
+            page = self.page
+            content=""
+            
             # 等待页面加载
             # page.wait_for_load_state("networkidle")
             # body = page.evaluate('() => document.body.innerText')
@@ -271,10 +271,6 @@ class WXArticleFetcher:
             info["content"]=body
             if "当前环境异常，完成验证后即可继续访问" in body:
                 info["content"]=""
-                # try:
-                #     page.locator("#js_verify").click()
-                # except:
-                self.controller.cleanup()
                 Wait(tips="当前环境异常，完成验证后即可继续访问")
                 raise Exception("当前环境异常，完成验证后即可继续访问")
             if "该内容已被发布者删除" in body or "The content has been deleted by the author." in body:
@@ -339,7 +335,7 @@ class WXArticleFetcher:
                 publish_time_str = page.locator("#publish_time").text_content().strip()
                 # 将发布时间转换为时间戳
                 publish_time = self.convert_publish_time_to_timestamp(publish_time_str)
-            except:
+            except Exception as e:
                 print_warning(f"获取作者和发布时间失败: {e}")
                 publish_time=""
             info["title"]=title
@@ -352,12 +348,14 @@ class WXArticleFetcher:
 
         except Exception as e:
             print_error(f"文章内容获取失败: {str(e)}")
-            print_warning(f"页面内容预览: {body[:50]}...")
+            body_preview = body[:50] if 'body' in dir() else "N/A"
+            print_warning(f"页面内容预览: {body_preview}...")
             # raise e
             # 记录详细错误信息但继续执行
 
         try:
-            if info["content"]!="DELETED":
+            if info["content"]!="DELETED" and hasattr(self, 'page') and self.page:
+                page = self.page
                 # 等待关键元素加载
                 # 使用更精确的选择器避免匹配多个元素
                 ele_logo = page.locator('#js_like_profile_bar .wx_follow_avatar img')
@@ -376,7 +374,9 @@ class WXArticleFetcher:
         except Exception as e:
             print_error(f"获取公众号信息失败: {str(e)}")   
             pass
-        self.Close()
+        finally:
+            # 确保浏览器资源被正确释放
+            self.Close()
         return info
     def Close(self):
         """关闭浏览器"""

@@ -17,6 +17,7 @@ if __name__ == '__main__':
     if cfg.get("cascade.enabled", False) and cfg.get("cascade.node_type") == "child":
         try:
             from jobs.cascade_sync import cascade_sync_service
+            from jobs.cascade_task_dispatcher import start_child_task_worker
             import asyncio
             
             cascade_sync_service.initialize()
@@ -27,8 +28,18 @@ if __name__ == '__main__':
                 
                 sync_thread = threading.Thread(target=run_sync, daemon=True)
                 sync_thread.start()
+                
+                # 启动子节点任务拉取器
+                poll_interval = cfg.get("cascade.task_poll_interval", 30)
+                
+                def run_task_worker():
+                    asyncio.run(start_child_task_worker(poll_interval=poll_interval))
+                
+                task_worker_thread = threading.Thread(target=run_task_worker, daemon=True)
+                task_worker_thread.start()
+                
                 cascade_service_started = True
-                print_success("级联同步服务已启动")
+                print_success(f"级联同步服务已启动，任务拉取间隔: {poll_interval}秒")
         except Exception as e:
             print_warning(f"启动级联同步服务失败: {str(e)}")
     else:

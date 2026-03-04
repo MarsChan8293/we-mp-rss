@@ -51,8 +51,6 @@ def fetch_articles_without_content():
             Wait(min=5,max=10,tips=f"修正 {article.title}... 完成")   
     except Exception as e:
         print(f"处理过程中发生错误: {e}")
-    finally:
-        Web.Close()
 from core.task import TaskScheduler
 from core.queue import TaskQueueManager
 scheduler=TaskScheduler()
