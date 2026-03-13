@@ -70,7 +70,7 @@ if __name__ == '__main__':
     uvicorn.run("web:app", host="0.0.0.0", port=int(cfg.get("port",8001)),
             reload=AutoReload,
             reload_dirs=reload_dirs,
-            reload_excludes=['static','data'],
+            reload_excludes=['static','data','node_modules','*.pnpm*'],
             workers=thread,
             )
     pass

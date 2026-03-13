@@ -103,7 +103,7 @@ class Wx:
             
             # 等待页面加载完成
             page.wait_for_load_state("networkidle")
-            
+            self._haslogin=False
             # 点击账号信息区域打开账号面板
             account_info = page.locator(".weui-desktop-account__info")
             if account_info.count() > 0:

@@ -364,7 +364,7 @@ class PlaywrightController:
                 self.context.close()
             if hasattr(self, 'browser') and self.browser:
                 self.browser.close()
-            if hasattr(self, 'playwright') and self.driver:
+            if hasattr(self, 'driver') and self.driver:
                 self.driver.stop()
             self.isClose = True
         except Exception as e:
