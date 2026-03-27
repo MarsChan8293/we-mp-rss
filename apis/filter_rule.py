@@ -327,22 +327,43 @@ def get_filter_rules_for_mp(mp_id: str) -> list:
             FilterRule.status == DATA_STATUS.ACTIVE
         ).order_by(FilterRule.priority.desc()).all()
 
+        print(f"[FilterRule] 查询到 {len(rules)} 条启用的规则")
+
         # 在 Python 层面过滤匹配的规则
         matched_rules = []
         for rule in rules:
+            # 解析 mp_id JSON
+            mp_ids = []
             try:
-                mp_ids = json.loads(rule.mp_id) if rule.mp_id and rule.mp_id.startswith('[') else ([rule.mp_id] if rule.mp_id else [])
-            except:
-                mp_ids = [rule.mp_id] if rule.mp_id else []
+                if rule.mp_id:
+                    # 检查是否为 JSON 数组格式
+                    if rule.mp_id.strip().startswith('['):
+                        mp_ids = json.loads(rule.mp_id)
+                        # 确保解析结果是列表
+                        if not isinstance(mp_ids, list):
+                            mp_ids = [str(mp_ids)]
+                    else:
+                        # 非 JSON 格式，作为单个 ID 处理
+                        mp_ids = [rule.mp_id]
+            except Exception as e:
+                print(f"[FilterRule] 解析 mp_id 失败: {rule.mp_id}, 错误: {e}")
+                mp_ids = []
 
             # 匹配条件：mp_id 在列表中，或者是全局规则（空数组）
-            if not mp_ids or mp_id in mp_ids:
-                print(f"[FilterRule] 匹配规则: {rule.rule_name}, mp_id={mp_id}, rule_mp_ids={mp_ids}")
+            is_global = len(mp_ids) == 0
+            is_match = is_global or mp_id in mp_ids
+
+            if is_match:
+                print(f"[FilterRule] 匹配规则: {rule.rule_name}, mp_id={mp_id}, rule_mp_ids={mp_ids}, is_global={is_global}")
                 matched_rules.append(rule)
+            else:
+                print(f"[FilterRule] 跳过规则: {rule.rule_name}, mp_id={mp_id}, rule_mp_ids={mp_ids}")
 
         print(f"[FilterRule] 为公众号 {mp_id} 找到 {len(matched_rules)} 条规则")
         return matched_rules
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"获取过滤规则失败: {str(e)}")
         return []
 

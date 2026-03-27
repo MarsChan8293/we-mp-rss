@@ -178,7 +178,7 @@ onMounted(async () => {
     <a-spin :loading="loading">
       <div class="filter-rule-form">
         <a-form :model="formData" layout="vertical" @submit-success="handleSubmit">
-          <a-form-item label="选择公众号" field="mps_id">
+          <!-- <a-form-item label="选择公众号" field="mps_id">
             <div class="mp-selector-row">
               <a-input
                 :model-value="(formData.mps_id||[]).map((mp: any) => mp.id?.toString() || mp.toString()).join(',')"
@@ -191,7 +191,7 @@ onMounted(async () => {
             <template #extra>
               <span class="form-tip">可选择多个公众号，不选择则作为全局规则对所有公众号生效</span>
             </template>
-          </a-form-item>
+          </a-form-item> -->
 
           <a-form-item label="规则名称" field="rule_name" :rules="[{ required: true, message: '请输入规则名称' }]">
             <a-input v-model="formData.rule_name" placeholder="例如：移除广告元素" />
