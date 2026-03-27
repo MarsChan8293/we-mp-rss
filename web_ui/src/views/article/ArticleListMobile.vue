@@ -85,6 +85,7 @@
 
   <a-drawer v-model:visible="mpListVisible" title="选择公众号" @ok="handleMpSelect" @cancel="mpListVisible = false" placement="left" width="99%">
     <div style="margin-bottom: 12px; padding: 0 8px;">
+      <a-input-search v-model="mpSearchText" placeholder="搜索公众号" @search="handleMpSearch" @keyup.enter="handleMpSearch" allow-clear style="margin-bottom: 8px;" />
       <a-radio-group v-model="mpFilterType" type="button" size="small" style="width: 100%;">
         <a-radio value="all" style="flex: 1; text-align: center;">全部</a-radio>
         <a-radio value="active" style="flex: 1; text-align: center;">启用</a-radio>
@@ -172,6 +173,7 @@ const activeMpId = ref('')
 const searchText = ref('')
 const mpListVisible = ref(false)
 const mpFilterType = ref('all') // 'active' | 'disabled' | 'all'
+const mpSearchText = ref('')
 
 // 公众号列表分页状态
 const mpPagination = ref({
@@ -314,6 +316,14 @@ watch(mpFilterType, () => {
   fetchMpList()
 })
 
+// 公众号搜索
+const handleMpSearch = () => {
+  mpPagination.value.current = 1
+  mpList.value = []
+  mpHasMore.value = true
+  fetchMpList()
+}
+
 // 公众号列表滚动加载更多
 const handleMpScroll = (event: Event) => {
   const target = event.target as HTMLElement
@@ -373,7 +383,8 @@ const fetchMpList = async (isLoadMore = false) => {
     const res = await getSubscriptions({
       page: mpPagination.value.current - 1,
       pageSize: adjustedPageSize,
-      status: statusParam
+      status: statusParam,
+      kw: mpSearchText.value
     })
 
     const newItems = res.list.map(item => ({
@@ -388,8 +399,8 @@ const fetchMpList = async (isLoadMore = false) => {
       mpList.value = [...mpList.value, ...newItems]
     } else {
       mpList.value = newItems
-      // 只在筛选全部时添加'全部'选项
-      if (mpFilterType.value === 'all') {
+      // 只在筛选全部且无搜索时添加'全部'选项
+      if (mpFilterType.value === 'all' && !mpSearchText.value) {
         mpList.value.unshift({
           id: '',
           name: '全部',
