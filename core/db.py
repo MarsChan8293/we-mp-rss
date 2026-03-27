@@ -204,15 +204,7 @@ class Db:
             if art.content_html is None:
                 from tools.fix import fix_html
                 art.content_html = fix_html(art.content)
-            
-            # 应用过滤规则
-            try:
-                from apis.filter_rule import apply_filter_rules
-                if art.mp_id and art.content_html:
-                    art.content_html = apply_filter_rules(art.content_html, art.mp_id)
-            except Exception as e:
-                print_warning(f"应用过滤规则失败: {e}")
-            
+           
             from core.models.base import DATA_STATUS
             art.status=DATA_STATUS.ACTIVE
             session.add(art)

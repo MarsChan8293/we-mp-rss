@@ -321,6 +321,9 @@ def get_filter_rules_for_mp(mp_id: str) -> list:
     返回规则列表，用于HTML过滤
     支持多公众号匹配和全局规则（空mp_id数组）
     """
+    if not mp_id:
+        return []
+    
     session = DB.get_session()
     try:
         rules = session.query(FilterRule).filter(
@@ -337,8 +340,10 @@ def get_filter_rules_for_mp(mp_id: str) -> list:
 
             # 匹配条件：mp_id 在列表中，或者是全局规则（空数组）
             if not mp_ids or mp_id in mp_ids:
+                print(f"[FilterRule] 匹配规则: {rule.rule_name}, mp_id={mp_id}, rule_mp_ids={mp_ids}")
                 matched_rules.append(rule)
 
+        print(f"[FilterRule] 为公众号 {mp_id} 找到 {len(matched_rules)} 条规则")
         return matched_rules
     except Exception as e:
         print(f"获取过滤规则失败: {str(e)}")
@@ -356,7 +361,7 @@ def apply_filter_rules(html_content: str, mp_id: str) -> str:
     Returns:
         过滤后的HTML内容
     """
-    if not html_content or not mp_id:
+    if not html_content:
         return html_content
 
     rules = get_filter_rules_for_mp(mp_id)
@@ -365,9 +370,11 @@ def apply_filter_rules(html_content: str, mp_id: str) -> str:
 
     from tools.htmltools import htmltools
 
+    print(f"[FilterRule] 开始应用过滤规则，共 {len(rules)} 条规则")
     filtered_content = html_content
     for rule in rules:
         try:
+            print(f"[FilterRule] 应用规则: {rule.rule_name}")
             filtered_content = htmltools.clean_html(
                 filtered_content,
                 remove_ids=rule.remove_ids or [],

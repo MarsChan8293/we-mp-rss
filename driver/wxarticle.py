@@ -497,11 +497,21 @@ class WXArticleFetcher:
             print_error(f"Proxy图片失败: {str(e)}")
         return content
    
-    def clean_article_content(self,html_content: str):
+    def clean_article_content(self,html_content: str,mp_id:str=""):
         from tools.htmltools import htmltools
         html_content=self.fix_images(html_content)
+        # 应用过滤规则
+        try:
+            from apis.filter_rule import apply_filter_rules
+            print(f"[DB] 准备应用过滤规则: mp_id={mp_id}, content_html存在={html_content is not None}")
+            if html_content:
+                html_content = apply_filter_rules(html_content, mp_id)
+
+        except Exception as e:
+            print_warning(f"应用过滤规则失败: {e}")
         if not cfg.get("gather.clean_html",False):
             return html_content
+        
         return htmltools.clean_html(str(html_content).strip(),
                                 remove_ids=
                                 ['content_bottom_interaction',
