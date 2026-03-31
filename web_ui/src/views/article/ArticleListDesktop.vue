@@ -1,5 +1,5 @@
 <template>
-  <a-spin :loading="fullLoading" tip="正在刷新..." size="large">
+  <a-spin :loading="fullLoading" tip="正在刷新..." size="large" style="width: 100%; height: 100%;">
     <a-layout class="article-list">
       
       <a-layout-sider :width="300"
@@ -73,7 +73,7 @@
         </a-card>
       </a-layout-sider>
 
-      <a-layout-content :style="{ padding: '20px', width: '100%' }">
+      <a-layout-content style="padding: 20px;">
         <a-page-header :title="activeFeed ? activeFeed.name : '全部'" :subtitle="'管理您的公众号订阅内容'" :show-back="false">
           <template #extra>
             <a-space>
@@ -435,23 +435,23 @@ const columns = computed(() => {
     {
       title: '已阅',
       dataIndex: 'is_read',
-      width: 70,
+      width: 80,
       render: ({ record }) => {
         const isRead = record.is_read === 1;
-        return h('div', { 
-          style: { 
-            display: 'flex', 
-            alignItems: 'center', 
+        return h('div', {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
             cursor: 'pointer',
             color: isRead ? 'var(--color-success)' : 'var(--color-text-3)'
           },
           onClick: () => toggleReadStatus(record)
         }, [
-          h(isRead ? IconCheck : IconClose, { 
-            style: { marginRight: '4px' } 
+          h(isRead ? IconCheck : IconClose, {
+            style: { marginRight: '4px' }
           }),
-          h('span', { 
-            style: { fontSize: '12px' } 
+          h('span', {
+            style: { fontSize: '12px' }
           }, isRead ? '已读' : '未读')
         ]);
       }
@@ -464,7 +464,7 @@ const columns = computed(() => {
         href: issourceUrl.value ? record.url || '#' : "/views/article/" + record.id,
         title: record.title,
         target: '_blank',
-        style: { 
+        style: {
           color: 'var(--color-text-1)',
           textDecoration: record.is_read === 1 ? 'line-through' : 'none',
           opacity: record.is_read === 1 ? 0.7 : 1
@@ -474,7 +474,7 @@ const columns = computed(() => {
     {
       title: '公众号',
       dataIndex: 'mp_id',
-      width: 100,
+      width: 90,
       ellipsis: true,
       render: ({ record }) => {
         const mp = mpList.value.find(item => item.id === record.mp_id);
@@ -520,7 +520,7 @@ const columns = computed(() => {
     {
       title: '发布',
       dataIndex: 'publish_type',
-      width: 60,
+      width: 50,
       align: 'center',
       render: ({ record }) => {
         const pubType = record.publish_type
@@ -552,12 +552,12 @@ const columns = computed(() => {
     {
       title: '操作',
       dataIndex: 'actions',
-      width: 160,
+      width: 140,
       align: 'center',
       slotName: 'actions'
     }
   ]
-  
+
   return allColumns.filter(col => visibleColumns.value.includes(col.dataIndex as string))
 })
 
@@ -1266,11 +1266,27 @@ const toggleFavoriteStatus = async (record: any) => {
 
 <style scoped>
 .article-list {
-  /* height: calc(100vh - 186px); */
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
-.a-layout-sider {
+.article-list :deep(.arco-layout) {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.article-list :deep(.arco-layout-sider) {
+  flex-shrink: 0;
   overflow: hidden;
+}
+
+.article-list :deep(.arco-layout-content) {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  box-sizing: border-box;
 }
 
 .a-list-item {
@@ -1321,15 +1337,32 @@ const toggleFavoriteStatus = async (record: any) => {
 }
 
 :deep(.arco-table) {
-  width: 100%;
+  width: 100% !important;
 }
 
 :deep(.arco-table-container) {
-  overflow-x: hidden;
+  width: 100% !important;
+  overflow-x: auto;
 }
 
 :deep(.arco-table-content) {
-  overflow-x: hidden;
+  overflow-x: auto;
+}
+
+:deep(.arco-table-element) {
+  width: 100% !important;
+  table-layout: auto !important;
+}
+
+:deep(.arco-card) {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 确保内部表格容器正确 */
+:deep(.arco-card-body) {
+  width: 100%;
+  overflow: hidden;
 }
 
 .arco-drawer-body img {
