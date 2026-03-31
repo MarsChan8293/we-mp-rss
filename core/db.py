@@ -121,31 +121,19 @@ class Db:
             art = Article(**article_data)
             if art.id: # type: ignore
                art.id=f"{str(art.mp_id)}-{art.id}".replace("MP_WXS_","") # type: ignore
-            existing_article = None
             if check_exist:
                 # 检查文章是否已存在
-                existing_article = session.query(Article).filter(
+                existing_article = session.query(Article.id).filter(
                     (Article.url == art.url) | (Article.id == art.id)
                 ).first()
                 if existing_article is not None:
-                    # 检查时间戳是否更新
-                    existing_ts = existing_article.publish_time
-                    new_ts = art.publish_time
-                    if new_ts and existing_ts and new_ts > existing_ts:# type: ignore
-                        # 更新文章内容
-                        existing_article.publish_time = art.publish_time
-                        if art.content and not existing_article.content:# type: ignore
-                            existing_article.content = art.content
-                        if art.content_html and not existing_article.content_html:# type: ignore
-                            existing_article.content_html = art.content_html
-                        if art.title and not existing_article.title:# type: ignore
-                            existing_article.title = art.title
-                        if art.updated_at: # type: ignore
-                            existing_article.updated_at = art.updated_at
-                        session.commit()
-                        print_info(f"Updated article (CHECK_EXIST): {art.id} (newer publish_time)")
-                        return True
+                    if art.content_html:# type: ignore
+                        from tools.fix import fix_html
+                        art.content_html = fix_html(art.content_html) # type: ignore
+                    session.merge(art)  # 使用 merge 来更新现有记录
+                    session.commit()
                     print_warning(f"Article already exists: {art.id}")
+                    print_info(f"Updated article (CHECK_EXIST): {art.id} (newer publish_time)")
                     return False
                 
             if art.created_at is None:
@@ -163,16 +151,8 @@ class Db:
                 from tools.fix import fix_html
                 art.content_html = fix_html(art.content) # type: ignore
            
-            from core.models.base import DATA_STATUS
-            art.status=DATA_STATUS.ACTIVE # type: ignore
-            new_ts = art.publish_time
-            existing_ts = existing_article.publish_time if existing_article else new_ts
-            if new_ts and existing_ts and new_ts > existing_ts: # type: ignore
-                session.merge(art)
-                print_info(f"Updated article (UNIQUE): {art.id} (newer publish_time)")
-            else:
-                session.add(art)
-                print_info(f"Added article: {art.id}")
+            session.add(art)
+            print_info(f"Added article: {art.id}")
             sta=session.commit()
         except Exception as e:
             session.rollback()  # 回滚事务，确保session状态正常

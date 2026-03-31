@@ -392,7 +392,6 @@ const allColumnOptions = [
   { key: 'mp_id', label: '公众号', required: false },
   { key: 'copyright_stat', label: '原创', required: false },
   { key: 'item_show_types', label: '类型', required: false },
-  { key: 'publish_type', label: '发布', required: false },
   { key: 'created_at', label: '更新时间', required: false },
   { key: 'publish_time', label: '发布时间', required: false },
   { key: 'actions', label: '操作', required: true }
@@ -553,20 +552,6 @@ const columns = computed(() => {
           color: itemShowTypeColorMap[showType] || 'gray',
           size: 'small'
         }, itemShowTypeTextMap[showType] || '图文')
-      }
-    },
-    {
-      title: '发布',
-      dataIndex: 'publish_type',
-      width: 50,
-      align: 'center',
-      render: ({ record }) => {
-        const pubType = record.publish_type
-        if (pubType === undefined || pubType === null) return '-'
-        return h('a-tag', {
-          color: publishTypeColorMap[pubType] || 'gray',
-          size: 'small'
-        }, publishTypeTextMap[pubType] || `${pubType}`)
       }
     },
     {
