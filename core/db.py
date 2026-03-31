@@ -101,8 +101,8 @@ class Db:
     def delete_article(self,article_data:dict)->bool:
         try:
             art = Article(**article_data)
-            if art.id:
-               art.id=f"{str(art.mp_id)}-{art.id}".replace("MP_WXS_","")
+            if art.id: # type: ignore
+               art.id=f"{str(art.mp_id)}-{art.id}".replace("MP_WXS_","") # type: ignore
             session=DB.get_session()
             article = session.query(Article).filter(Article.id == art.id).first()
             if article is not None:
@@ -119,8 +119,8 @@ class Db:
             session=self.get_session()
             from datetime import datetime
             art = Article(**article_data)
-            if art.id:
-               art.id=f"{str(art.mp_id)}-{art.id}".replace("MP_WXS_","")
+            if art.id: # type: ignore
+               art.id=f"{str(art.mp_id)}-{art.id}".replace("MP_WXS_","") # type: ignore
             
             if check_exist:
                 # 检查文章是否已存在
@@ -149,28 +149,30 @@ class Db:
                     return False
                 
             if art.created_at is None:
-                art.created_at=datetime.now()
+                art.created_at=datetime.now() # type: ignore
             if isinstance(art.created_at, str):
-                art.created_at=datetime.strptime(art.created_at ,'%Y-%m-%d %H:%M:%S')
+                art.created_at=datetime.strptime(art.created_at ,'%Y-%m-%d %H:%M:%S') # type: ignore
             # 先处理毫秒，用原始值作为fallback，再转换秒
             original_updated_at = art.updated_at
             from core.timestamp import _to_unix_millis, _to_unix_seconds
-            art.updated_at_millis = _to_unix_millis(art.updated_at_millis, original_updated_at)
-            art.updated_at = _to_unix_seconds(art.updated_at)
+            art.updated_at_millis = _to_unix_millis(art.updated_at_millis, original_updated_at) # type: ignore
+            art.updated_at = _to_unix_seconds(art.updated_at) # type: ignore
             art.content=art.content
 
             if art.content_html is None:
                 from tools.fix import fix_html
-                art.content_html = fix_html(art.content)
+                art.content_html = fix_html(art.content) # type: ignore
            
             from core.models.base import DATA_STATUS
-            art.status=DATA_STATUS.ACTIVE
-            session.add(art)
+            art.status=DATA_STATUS.ACTIVE # type: ignore
             existing_ts = existing_article.publish_time
             new_ts = art.publish_time
-            if new_ts and existing_ts and new_ts > existing_ts:
+            if new_ts and existing_ts and new_ts > existing_ts: # type: ignore
                 session.merge(art)
                 print_info(f"Updated article (UNIQUE): {art.id} (newer publish_time)")
+            else:
+                session.add(art)
+                print_info(f"Added article: {art.id}")
             sta=session.commit()
         except Exception as e:
             session.rollback()  # 回滚事务，确保session状态正常
