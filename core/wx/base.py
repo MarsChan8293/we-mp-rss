@@ -5,6 +5,7 @@ import re
 import time
 from core.models import Feed
 from core.db import DB
+from core.models.base import DATA_STATUS
 from core.models.feed import Feed
 from .cfg import cfg,wx_cfg
 from core.print import print_error,print_info, print_warning, print_success
@@ -193,7 +194,12 @@ class WxGather:
                     "url":data['link'],
                     "pic_url":data['cover'],
                     "content":data.get("content",""),
+                    "publish_type":data.get("publish_type",0),
+                    "publish_src":data.get("publish_src",0),
+                    "publish_src":data.get("publish_src",0),
+                    "publish_status":data.get("publish_status","200"),
                     "publish_time":data['update_time'],
+                    "status": DATA_STATUS.DELETED if data.get("is_deleted",False) else DATA_STATUS.ACTIVE,
                 }
                 if 'digest' in data:
                     art['description']=data['digest']

@@ -1,3 +1,4 @@
+from pydantic import Json
 from sqlalchemy import BigInteger
 
 from  .base import Base,Column,String,Integer,DateTime,Text,DATA_STATUS
@@ -13,6 +14,9 @@ class ArticleBase(Base):
     extinfo = Column(Text)
     status = Column(Integer,default=1,index=True)
     publish_time = Column(Integer,index=True)
+    publish_type = Column(Integer,index=True)
+    publish_src = Column(Integer,index=True)
+    publish_status = Column(Text,index=True)
     created_at = Column(DateTime)
     updated_at = Column(BigInteger)
     updated_at_millis = Column(BigInteger,index=True)

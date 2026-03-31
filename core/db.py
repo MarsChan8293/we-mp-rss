@@ -70,7 +70,7 @@ class Db:
             if not alter_statements:
                 return
 
-            with self.engine.begin() as conn:
+            with self.engine.begin() as conn: # type: ignore
                 for stmt in alter_statements:
                     conn.execute(text(stmt))
 
@@ -89,9 +89,9 @@ class Db:
         
     def close(self) -> None:
         """Close the database connection"""
-        if self.SESSION:
-            self.SESSION.close()
-            self.SESSION.remove()
+        if self.Session:
+            self.Session.close() # type: ignore
+            self.Session.remove() # type: ignore
             
     def __enter__(self):
         return self
@@ -131,16 +131,16 @@ class Db:
                     # 检查时间戳是否更新
                     existing_ts = existing_article.publish_time
                     new_ts = art.publish_time
-                    if new_ts and existing_ts and new_ts > existing_ts:
+                    if new_ts and existing_ts and new_ts > existing_ts:# type: ignore
                         # 更新文章内容
                         existing_article.publish_time = art.publish_time
-                        if art.content and not existing_article.content:
+                        if art.content and not existing_article.content:# type: ignore
                             existing_article.content = art.content
-                        if art.content_html and not existing_article.content_html:
+                        if art.content_html and not existing_article.content_html:# type: ignore
                             existing_article.content_html = art.content_html
-                        if art.title and not existing_article.title:
+                        if art.title and not existing_article.title:# type: ignore
                             existing_article.title = art.title
-                        if art.updated_at:
+                        if art.updated_at: # type: ignore
                             existing_article.updated_at = art.updated_at
                         session.commit()
                         print_info(f"Updated article (CHECK_EXIST): {art.id} (newer publish_time)")
@@ -183,13 +183,13 @@ class Db:
             return False
         return True    
         
-    def get_articles(self, id:str=None, limit:int=30, offset:int=0) -> List[Article]:
+    def get_articles(self, id:str=None, limit:int=30, offset:int=0) -> List[Article]: # type: ignore
         try:
             data = self.get_session().query(Article).limit(limit).offset(offset)
             return data
         except Exception as e:
             print(f"Failed to fetch Feed: {e}")
-            return e    
+            return e # type: ignore   
              
     def get_all_mps(self) -> List[Feed]:
         """Get all Feed records"""
@@ -206,7 +206,7 @@ class Db:
             return data
         except Exception as e:
             print(f"Failed to fetch Feed: {e}")
-            return e
+            return e # type: ignore
     def get_mps(self, mp_id:str) -> Optional[Feed]:
         try:
             ids=mp_id.split(',')
@@ -214,11 +214,11 @@ class Db:
             return data
         except Exception as e:
             print(f"Failed to fetch Feed: {e}")
-            return e
+            return e # type: ignore
 
     def get_faker_id(self, mp_id:str):
         data = self.get_mps(mp_id)
-        return data.faker_id
+        return data.faker_id # type: ignore
     def expire_all(self):
         if self.Session:
             self.Session.expire_all()    
@@ -256,7 +256,7 @@ class Db:
         if self.Session is None:
             _session()
         
-        session = self.Session()
+        session = self.Session()  # type: ignore
         # session.expire_all()
         # session.expire_on_commit = True  # 确保每次提交后对象过期
         # 检查会话是否已经关闭
@@ -264,7 +264,7 @@ class Db:
             from core.print import print_info
             print_info(f"[{self.tag}] Session is already closed.")
             _session()
-            return self.Session()
+            return self.Session() # type: ignore
         # 检查数据库连接是否已断开
         try:
             from core.models import User
@@ -275,7 +275,7 @@ class Db:
             print_warning(f"[{self.tag}] Database connection lost: {e}. Reconnecting...")
             self.init(self.connection_str)
             _session()
-            return self.Session()
+            return self.Session() # type: ignore
         return session
     def auto_refresh(self):
         # 定义一个事件监听器，在对象更新后自动刷新
@@ -295,4 +295,4 @@ class Db:
 
 # 全局数据库实例
 DB = Db(User_In_Thread=True)
-DB.init(cfg.get("db"))
+DB.init(cfg.get("db")) # type: ignore
