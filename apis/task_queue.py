@@ -37,22 +37,20 @@ async def get_queue_status(
 
 @router.get("/history", summary="获取任务执行历史")
 async def get_queue_history(
-    limit: int = Query(20, ge=1, le=100, description="返回记录数量"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量"),
     current_user: dict = Depends(get_current_user_or_ak)
 ):
     """
-    获取任务执行历史记录
+    获取任务执行历史记录（分页）
     
     参数:
-        limit: 返回记录数量，默认20条
+        page: 页码，从1开始
+        page_size: 每页数量，默认10条
     """
     try:
-        status = TaskQueue.get_detailed_status()
-        history = status.get('recent_history', [])[:limit]
-        return success_response(data={
-            'history': history,
-            'total': status.get('history_count', 0)
-        })
+        result = TaskQueue._get_history_page_from_redis(page, page_size)
+        return success_response(data=result)
     except Exception as e:
         return error_response(code=500, message=str(e))
 

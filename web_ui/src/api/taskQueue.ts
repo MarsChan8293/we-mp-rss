@@ -79,13 +79,19 @@ export const getQueueStatus = async (): Promise<QueueStatus> => {
   }
 };
 
-export const getQueueHistory = async (limit: number = 20): Promise<{ history: TaskRecord[]; total: number }> => {
+export const getQueueHistory = async (
+  page: number = 1,
+  pageSize: number = 10
+): Promise<{ history: TaskRecord[]; total: number; page: number; page_size: number; total_pages: number }> => {
   try {
-    const response = await http.get('/wx/task-queue/history', { params: { limit } });
+    const response = await http.get('/wx/task-queue/history', { params: { page, page_size: pageSize } });
     const data = response as any;
     return {
       history: data?.history || [],
       total: data?.total || 0,
+      page: data?.page || 1,
+      page_size: data?.page_size || 10,
+      total_pages: data?.total_pages || 0,
     };
   } catch (error) {
     console.error('Get queue history error:', error);

@@ -219,7 +219,7 @@ class TaskQueueManager:
             return None
     
     def _get_history_from_redis(self, limit: int = 20) -> list:
-        """从 Redis 获取历史记录"""
+        """从 Redis 获取历史记录（兼容旧接口）"""
         redis_client = _get_redis()
         if not redis_client:
             return []
@@ -230,6 +230,42 @@ class TaskQueueManager:
         except Exception as e:
             print_error(f"从 Redis 获取历史记录失败: {e}")
             return []
+    
+    def _get_history_page_from_redis(self, page: int = 1, page_size: int = 10) -> dict:
+        """从 Redis 获取分页历史记录
+        
+        Args:
+            page: 页码，从1开始
+            page_size: 每页数量
+            
+        Returns:
+            dict: 包含 history, total, page, page_size, total_pages
+        """
+        redis_client = _get_redis()
+        if not redis_client:
+            return {'history': [], 'total': 0, 'page': page, 'page_size': page_size, 'total_pages': 0}
+        
+        try:
+            total = redis_client.llen(REDIS_KEY_HISTORY)
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+            
+            # Redis 列表是从新到旧存储的（LPUSH），所以计算偏移量
+            start = (page - 1) * page_size
+            end = start + page_size - 1
+            
+            items = redis_client.lrange(REDIS_KEY_HISTORY, start, end)
+            history = [json.loads(item) for item in items]
+            
+            return {
+                'history': history,
+                'total': total,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': total_pages
+            }
+        except Exception as e:
+            print_error(f"从 Redis 获取分页历史记录失败: {e}")
+            return {'history': [], 'total': 0, 'page': page, 'page_size': page_size, 'total_pages': 0}
     
     def _get_history_count_from_redis(self) -> int:
         """从 Redis 获取历史记录数量"""
