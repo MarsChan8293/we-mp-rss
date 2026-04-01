@@ -16,7 +16,6 @@ import requests
 from typing import Optional, Dict, Any, Callable
 from threading import Lock, Timer
 from PIL import Image
-import qrcode
 from io import BytesIO
 
 
@@ -342,29 +341,19 @@ class WeChatAPI:
                 with open(self.qr_code_path, 'wb') as f:
                     f.write(response.content)
             else:
-                # 如果是数据，生成二维码
-                qr = qrcode.QRCode(
-                    version=1,
-                    error_correction=qrcode.constants.ERROR_CORRECT_L,
-                    box_size=10,
-                    border=4,
-                )
-                qr.add_data(qr_url)
-                qr.make(fit=True)
-                
-                img = qr.make_image(fill_color="black", back_color="white")
+                # 使用第三方 API 生成二维码，避免 tkinter 依赖
+                import urllib.parse
+                api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={urllib.parse.quote(qr_url)}"
+                response = self.session.get(api_url)
+                response.raise_for_status()
                 
                 # 确保图片格式正确
                 if not self.qr_code_path.lower().endswith('.png'):
                     self.qr_code_path = os.path.splitext(self.qr_code_path)[0] + '.png'
                 
-                # 使用BytesIO临时保存图片，确保编码正确
-                buffer = BytesIO()
-                img.save(buffer, format='PNG')
-                
                 # 写入文件
                 with open(self.qr_code_path, 'wb') as f:
-                    f.write(buffer.getvalue())
+                    f.write(response.content)
                 
             logger.info(f"二维码已保存到: {self.qr_code_path}")
             
