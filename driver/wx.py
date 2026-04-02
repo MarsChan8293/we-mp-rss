@@ -88,7 +88,8 @@ class Wx:
             username: 目标账号的用户名，如果为空则切换到其他可用账号
         """
         print("开始切换账号...")
-        queue_was_running = False
+        main_queue_was_running = False
+        content_queue_was_running = False
         
         try:
             # 检查是否已有切换操作在进行
@@ -99,13 +100,48 @@ class Wx:
             # 设置锁状态
             setLockStatus(True)
             
-            # 暂停任务队列，等待当前任务完成
-            from core.queue import TaskQueue
-            queue_was_running = TaskQueue._is_running
-            if queue_was_running:
-                print_info("暂停任务队列，等待当前任务完成...")
+            # 暂停主队列和内容队列，等待当前任务完成
+            from core.queue import TaskQueue, ContentTaskQueue
+            main_queue_was_running = TaskQueue._is_running
+            content_queue_was_running = ContentTaskQueue._is_running
+            
+            # 停止队列
+            if main_queue_was_running:
+                print_info("暂停主任务队列...")
                 TaskQueue.stop()
-                time.sleep(2)  # 等待当前任务完成
+            if content_queue_was_running:
+                print_info("暂停内容任务队列...")
+                ContentTaskQueue.stop()
+            
+            # 等待当前任务真正完成
+            max_wait = 120  # 最大等待120秒
+            wait_interval = 1
+            waited = 0
+            
+            while waited < max_wait:
+                has_current_task = False
+                
+                # 检查主队列是否有正在执行的任务
+                if TaskQueue._current_task is not None:
+                    has_current_task = True
+                    print_info(f"主队列任务正在执行: {TaskQueue._current_task.task_name}")
+                
+                # 检查内容队列是否有正在执行的任务
+                if ContentTaskQueue._current_task is not None:
+                    has_current_task = True
+                    print_info(f"内容队列任务正在执行: {ContentTaskQueue._current_task.task_name}")
+                
+                if not has_current_task:
+                    print_success("所有任务已完成，可以安全切换账号")
+                    break
+                
+                time.sleep(wait_interval)
+                waited += wait_interval
+                if waited % 5 == 0:
+                    print_info(f"等待任务完成中... ({waited}秒)")
+            
+            if waited >= max_wait:
+                print_warning("等待超时，仍有任务未完成，切换账号可能导致会话失效")
             
             self.Token(isClose=False)
             if getStatus() is False:
@@ -208,10 +244,13 @@ class Wx:
             # 确保锁被释放
             setLockStatus(False)
             # 恢复任务队列
-            if queue_was_running:
-                from core.queue import TaskQueue
-                print_info("恢复任务队列...")
-                TaskQueue.run_task_background() 
+            from core.queue import TaskQueue, ContentTaskQueue
+            if main_queue_was_running:
+                print_info("恢复主任务队列...")
+                TaskQueue.run_task_background()
+            if content_queue_was_running:
+                print_info("恢复内容任务队列...")
+                ContentTaskQueue.run_task_background() 
     def GetCode(self,CallBack=None,Notice=None):
         self.Notice=Notice
         if  self.check_lock():
