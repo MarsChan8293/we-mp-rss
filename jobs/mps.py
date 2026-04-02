@@ -264,8 +264,8 @@ def start_job(job_id:str=None):
             print_error(f"任务[{task.id}]没有设置cron表达式")
             continue
 
-        # 修改：只传递 task，在 add_job 中动态获取 feeds
-        job_id=scheduler.add_cron_job(add_job,cron_expr=cron_exp,args=[task],job_id=str(task.id),tag="定时采集")
+        # 修改：使用关键字参数传递 task，避免与 feeds 混淆
+        job_id=scheduler.add_cron_job(add_job,cron_expr=cron_exp,kwargs={'task': task},job_id=str(task.id),tag="定时采集")
         print(f"已添加任务: {job_id}")
     scheduler.start()
     print("启动任务")
