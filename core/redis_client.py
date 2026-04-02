@@ -205,6 +205,66 @@ class RedisClient:
         except Exception as e:
             print_error(f"获取环境异常统计失败: {e}")
             return default_stats
+    
+    def clear_env_exception(self, mp_id: str = "", url: str = "") -> bool:
+        """清除环境异常记录
+        
+        当公众号采集成功后，清除该公众号相关的异常记录
+        
+        Args:
+            mp_id: 公众号ID，清除该公众号的所有异常记录
+            url: 文章URL，清除该URL的异常记录
+            
+        Returns:
+            是否清除成功
+        """
+        if not self.is_connected:
+            if not self.reconnect():
+                return False
+        
+        try:
+            today = datetime.now().strftime("%Y-%m-%d")
+            
+            # 使用Redis事务确保原子性
+            pipe = self._client.pipeline()
+            
+            # 清除公众号维度的异常统计
+            if mp_id:
+                mp_key = f"werss:env_exception:mp:{today}"
+                # 获取该公众号的异常次数
+                count = self._client.hget(mp_key, mp_id)
+                if count:
+                    count = int(count)
+                    # 减少总计数
+                    total_key = f"werss:env_exception:total:{today}"
+                    pipe.decrby(total_key, count)
+                    # 删除该公众号的统计
+                    pipe.hdel(mp_key, mp_id)
+                    print_info(f"已清除公众号 {mp_id} 的 {count} 条异常记录")
+            
+            # 清除URL维度的异常记录
+            if url:
+                url_key = f"werss:env_exception:url:{today}"
+                if self._client.hexists(url_key, url):
+                    pipe.hdel(url_key, url)
+                    # 减少总计数
+                    total_key = f"werss:env_exception:total:{today}"
+                    pipe.decr(total_key)
+                    print_info(f"已清除URL {url} 的异常记录")
+            
+            # 执行事务
+            if pipe.command_stack:
+                pipe.execute()
+            
+            return True
+            
+        except redis.exceptions.ConnectionError as e:
+            print_error(f"Redis连接断开，清除失败: {e}")
+            self._client = None
+            return False
+        except Exception as e:
+            print_error(f"清除环境异常记录失败: {e}")
+            return False
 
 
 # 全局单例实例
@@ -235,3 +295,18 @@ def get_env_exception_stats(date: Optional[str] = None) -> Dict[str, Any]:
         统计信息字典
     """
     return redis_client.get_env_exception_stats(date)
+
+
+def clear_env_exception(mp_id: str = "", url: str = "") -> bool:
+    """清除环境异常记录（便捷函数）
+    
+    当公众号采集成功后，清除该公众号相关的异常记录
+    
+    Args:
+        mp_id: 公众号ID，清除该公众号的所有异常记录
+        url: 文章URL，清除该URL的异常记录
+        
+    Returns:
+        是否清除成功
+    """
+    return redis_client.clear_env_exception(mp_id, url)

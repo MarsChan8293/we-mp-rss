@@ -10,6 +10,7 @@ from core.config import cfg,DEBUG
 from core.print import print_info,print_success,print_error
 from driver.wx import WX_API
 from driver.success import Success
+from core.redis_client import clear_env_exception
 wx_db=db.Db(tag="任务调度")
 def fetch_all_article():
     print("开始更新")
@@ -84,6 +85,14 @@ def do_job(mp=None,task:MessageTask=None,isTest=False):
                 tms=MessageWebHook(task=task,feed=mp,articles=mock_articles)
                 web_hook(tms, is_test=isTest)
                 print_success(f"任务({task.id})[{mp.mp_name}]执行成功,{count}成功条数")
+                
+                # 采集成功，清除该公众号的环境异常记录
+                if not isTest and success and count > 0:
+                    try:
+                        clear_env_exception(mp_id=mp.id)
+                    except Exception as e:
+                        print_error(f"清除环境异常记录失败: {e}")
+                        
             except Exception as e:
                 print_error(f"Webhook执行失败 [{mp.mp_name}]: {e}")
                 if not error_msg:

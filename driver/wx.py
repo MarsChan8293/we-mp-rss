@@ -108,7 +108,7 @@ class Wx:
                 time.sleep(2)  # 等待当前任务完成
             
             self.Token(isClose=False)
-            if self._haslogin is False:
+            if getStatus() is False:
                 self.Close()
                 self.GetCode(Success)
                 time.sleep(60)
