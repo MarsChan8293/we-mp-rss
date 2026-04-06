@@ -40,6 +40,16 @@ class BatchPushArticlesTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_batch_push_task(task)
 
+    def test_validate_batch_push_task_rejects_missing_task(self):
+        with self.assertRaises(ValueError):
+            validate_batch_push_task(None)
+
+    def test_validate_batch_push_task_rejects_disabled_task(self):
+        task = self.build_task(status=0)
+
+        with self.assertRaises(ValueError):
+            validate_batch_push_task(task)
+
     @patch("jobs.article_batch_push.web_hook")
     def test_batch_push_articles_groups_articles_by_mp_id(self, web_hook_mock):
         task = self.build_task()
