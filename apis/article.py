@@ -1,12 +1,17 @@
 import threading
 import time
+from typing import List
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status as fast_status, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, status as fast_status, Query
+from pydantic import BaseModel
 from core.auth import get_current_user_or_ak
 from core.db import DB
 from core.models.base import DATA_STATUS
 from core.models.article import Article,ArticleBase
+from core.models.feed import Feed
+from core.models.message_task import MessageTask
+from jobs.article_batch_push import batch_push_articles
 from sqlalchemy import and_, or_, desc
 from .base import success_response, error_response
 from core.config import cfg
@@ -20,6 +25,11 @@ router = APIRouter(prefix=f"/articles", tags=["文章管理"])
 
 _refresh_tasks = {}
 _refresh_tasks_lock = threading.Lock()
+
+
+class ArticleBatchPushRequest(BaseModel):
+    task_id: str
+    article_ids: List[str]
 
 
 def _set_refresh_task(task_id: str, data: dict):
@@ -125,6 +135,46 @@ def _run_refresh_article_task(task_id: str, article_id: str):
                 fetcher.Close()
             except Exception:
                 pass
+        session.close()
+
+
+@router.post("/batch_push", summary="批量推送选中文章")
+async def batch_push_selected_articles(
+    request_data: ArticleBatchPushRequest = Body(...),
+    current_user: dict = Depends(get_current_user_or_ak)
+):
+    session = DB.get_session()
+    try:
+        article_ids = []
+        seen = set()
+        for article_id in request_data.article_ids:
+            value = str(article_id).strip()
+            if value and value not in seen:
+                seen.add(value)
+                article_ids.append(value)
+
+        if not article_ids:
+            return error_response(code=400, message="请至少选择一篇文章")
+
+        task = session.query(MessageTask).filter(MessageTask.id == request_data.task_id).first()
+        if not task:
+            return error_response(code=404, message="消息任务不存在")
+
+        articles = session.query(Article).filter(Article.id.in_(article_ids)).all()
+        if len(articles) != len(article_ids):
+            found_ids = {str(article.id) for article in articles}
+            missing_ids = [article_id for article_id in article_ids if article_id not in found_ids]
+            return error_response(code=400, message=f"部分文章不存在: {', '.join(missing_ids)}")
+
+        mp_ids = list({article.mp_id for article in articles})
+        feeds = session.query(Feed).filter(Feed.id.in_(mp_ids)).all()
+        feeds_by_id = {feed.id: feed for feed in feeds}
+
+        result = batch_push_articles(task, feeds_by_id, articles)
+        return success_response(data=result, message=result["summary"])
+    except Exception as exc:
+        return error_response(code=400 if isinstance(exc, ValueError) else 500, message=str(exc))
+    finally:
         session.close()
 
 
