@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from jobs.article_batch_push import batch_push_articles, validate_batch_push_task
 
@@ -32,6 +32,12 @@ class BatchPushArticlesTests(unittest.TestCase):
             publish_time="2026-04-06 05:20:00",
             pic_url="",
             content="<p>demo</p>",
+        )
+
+    def build_webhook_api(self, web_hook_mock):
+        return SimpleNamespace(
+            MessageWebHook=lambda **kwargs: SimpleNamespace(**kwargs),
+            web_hook=web_hook_mock,
         )
 
     def test_validate_batch_push_task_rejects_non_delivery_type(self):
@@ -80,8 +86,8 @@ class BatchPushArticlesTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             batch_push_articles(task, {}, [])
 
-    @patch("jobs.article_batch_push.web_hook")
-    def test_batch_push_articles_groups_articles_by_mp_id(self, web_hook_mock):
+    @patch("jobs.article_batch_push._get_webhook_api")
+    def test_batch_push_articles_groups_articles_by_mp_id(self, webhook_api_mock):
         task = self.build_task()
         feeds_by_id = {
             "mp-a": self.build_feed("mp-a", "公众号A"),
@@ -92,6 +98,8 @@ class BatchPushArticlesTests(unittest.TestCase):
             self.build_article("a-2", "mp-a", "A2"),
             self.build_article("b-1", "mp-b", "B1"),
         ]
+        web_hook_mock = Mock()
+        webhook_api_mock.return_value = self.build_webhook_api(web_hook_mock)
 
         result = batch_push_articles(task, feeds_by_id, articles)
 
@@ -104,8 +112,8 @@ class BatchPushArticlesTests(unittest.TestCase):
         self.assertEqual(result["message_type"], 1)
         self.assertEqual(result["summary"], "批量推送完成，成功 2 个公众号，失败 0 个公众号")
 
-    @patch("jobs.article_batch_push.web_hook")
-    def test_batch_push_articles_keeps_other_groups_when_one_group_fails(self, web_hook_mock):
+    @patch("jobs.article_batch_push._get_webhook_api")
+    def test_batch_push_articles_keeps_other_groups_when_one_group_fails(self, webhook_api_mock):
         task = self.build_task()
         feeds_by_id = {
             "mp-a": self.build_feed("mp-a", "公众号A"),
@@ -115,7 +123,8 @@ class BatchPushArticlesTests(unittest.TestCase):
             self.build_article("a-1", "mp-a", "A1"),
             self.build_article("b-1", "mp-b", "B1"),
         ]
-        web_hook_mock.side_effect = [ValueError("boom"), "ok"]
+        web_hook_mock = Mock(side_effect=[ValueError("boom"), None])
+        webhook_api_mock.return_value = self.build_webhook_api(web_hook_mock)
 
         result = batch_push_articles(task, feeds_by_id, articles)
 
@@ -124,8 +133,8 @@ class BatchPushArticlesTests(unittest.TestCase):
         self.assertEqual(result["results"][0]["success"], False)
         self.assertEqual(result["results"][1]["success"], True)
 
-    @patch("jobs.article_batch_push.web_hook")
-    def test_batch_push_articles_records_missing_feed_and_continues(self, web_hook_mock):
+    @patch("jobs.article_batch_push._get_webhook_api")
+    def test_batch_push_articles_records_missing_feed_and_continues(self, webhook_api_mock):
         task = self.build_task()
         feeds_by_id = {
             "mp-a": self.build_feed("mp-a", "公众号A"),
@@ -134,6 +143,8 @@ class BatchPushArticlesTests(unittest.TestCase):
             self.build_article("a-1", "mp-a", "A1"),
             self.build_article("b-1", "mp-b", "B1"),
         ]
+        web_hook_mock = Mock()
+        webhook_api_mock.return_value = self.build_webhook_api(web_hook_mock)
 
         result = batch_push_articles(task, feeds_by_id, articles)
 
@@ -144,8 +155,8 @@ class BatchPushArticlesTests(unittest.TestCase):
         self.assertFalse(result["results"][1]["success"])
         self.assertEqual(result["results"][1]["error"], "公众号不存在: mp-b")
 
-    @patch("jobs.article_batch_push.web_hook")
-    def test_batch_push_articles_passes_grouped_articles_to_web_hook(self, web_hook_mock):
+    @patch("jobs.article_batch_push._get_webhook_api")
+    def test_batch_push_articles_passes_grouped_articles_to_web_hook(self, webhook_api_mock):
         task = self.build_task()
         feeds_by_id = {
             "mp-a": self.build_feed("mp-a", "公众号A"),
@@ -154,6 +165,8 @@ class BatchPushArticlesTests(unittest.TestCase):
             self.build_article("a-1", "mp-a", "A1"),
             self.build_article("a-2", "mp-a", "A2"),
         ]
+        web_hook_mock = Mock()
+        webhook_api_mock.return_value = self.build_webhook_api(web_hook_mock)
 
         batch_push_articles(task, feeds_by_id, articles)
 
@@ -163,8 +176,8 @@ class BatchPushArticlesTests(unittest.TestCase):
         self.assertEqual(hook.feed, feeds_by_id["mp-a"])
         self.assertEqual([article.id for article in hook.articles], ["a-1", "a-2"])
 
-    @patch("jobs.article_batch_push.web_hook")
-    def test_batch_push_articles_routes_email_tasks(self, web_hook_mock):
+    @patch("jobs.article_batch_push._get_webhook_api")
+    def test_batch_push_articles_routes_email_tasks(self, webhook_api_mock):
         task = self.build_task(message_type=2, web_hook_url="", email_to=" recipient@example.com ")
         feeds_by_id = {
             "mp-a": self.build_feed("mp-a", "公众号A"),
@@ -172,6 +185,8 @@ class BatchPushArticlesTests(unittest.TestCase):
         articles = [
             self.build_article("a-1", "mp-a", "A1"),
         ]
+        web_hook_mock = Mock()
+        webhook_api_mock.return_value = self.build_webhook_api(web_hook_mock)
 
         result = batch_push_articles(task, feeds_by_id, articles)
 

@@ -1,6 +1,5 @@
 from collections import OrderedDict
-
-from jobs.webhook import MessageWebHook, web_hook
+from types import SimpleNamespace
 
 SUPPORTED_BATCH_PUSH_MESSAGE_TYPES = (1, 2)
 
@@ -30,11 +29,19 @@ def group_articles_by_mp_id(articles):
     return grouped
 
 
+def _get_webhook_api():
+    from jobs.webhook import MessageWebHook, web_hook
+
+    return SimpleNamespace(MessageWebHook=MessageWebHook, web_hook=web_hook)
+
+
 def batch_push_articles(task, feeds_by_id, articles):
+    """Batch push grouped articles through the task's webhook sender."""
     validate_batch_push_task(task)
     if not articles:
         raise ValueError("请至少选择一篇文章")
 
+    webhook_api = _get_webhook_api()
     grouped_articles = group_articles_by_mp_id(articles)
     results = []
     success_count = 0
@@ -58,7 +65,9 @@ def batch_push_articles(task, feeds_by_id, articles):
             continue
 
         try:
-            web_hook(MessageWebHook(task=task, feed=feed, articles=group))
+            webhook_api.web_hook(
+                webhook_api.MessageWebHook(task=task, feed=feed, articles=group)
+            )
             results.append(
                 {
                     "mp_id": mp_id,
