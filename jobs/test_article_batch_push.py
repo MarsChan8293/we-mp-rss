@@ -56,8 +56,20 @@ class BatchPushArticlesTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_batch_push_task(task)
 
+    def test_validate_batch_push_task_rejects_whitespace_web_hook_url(self):
+        task = self.build_task(web_hook_url="   ")
+
+        with self.assertRaises(ValueError):
+            validate_batch_push_task(task)
+
     def test_validate_batch_push_task_rejects_missing_email_to(self):
         task = self.build_task(message_type=2, web_hook_url="", email_to="")
+
+        with self.assertRaises(ValueError):
+            validate_batch_push_task(task)
+
+    def test_validate_batch_push_task_rejects_whitespace_email_to(self):
+        task = self.build_task(message_type=2, web_hook_url="", email_to=" \t ")
 
         with self.assertRaises(ValueError):
             validate_batch_push_task(task)
@@ -87,6 +99,10 @@ class BatchPushArticlesTests(unittest.TestCase):
         self.assertEqual(web_hook_mock.call_count, 2)
         self.assertEqual(result["success_count"], 2)
         self.assertEqual(result["failure_count"], 0)
+        self.assertEqual(result["task_id"], "task-1")
+        self.assertEqual(result["task_name"], "Batch Push")
+        self.assertEqual(result["message_type"], 1)
+        self.assertEqual(result["summary"], "批量推送完成，成功 2 个公众号，失败 0 个公众号")
 
     @patch("jobs.article_batch_push.web_hook")
     def test_batch_push_articles_keeps_other_groups_when_one_group_fails(self, web_hook_mock):
@@ -146,3 +162,21 @@ class BatchPushArticlesTests(unittest.TestCase):
         self.assertEqual(hook.task, task)
         self.assertEqual(hook.feed, feeds_by_id["mp-a"])
         self.assertEqual([article.id for article in hook.articles], ["a-1", "a-2"])
+
+    @patch("jobs.article_batch_push.web_hook")
+    def test_batch_push_articles_routes_email_tasks(self, web_hook_mock):
+        task = self.build_task(message_type=2, web_hook_url="", email_to=" recipient@example.com ")
+        feeds_by_id = {
+            "mp-a": self.build_feed("mp-a", "公众号A"),
+        }
+        articles = [
+            self.build_article("a-1", "mp-a", "A1"),
+        ]
+
+        result = batch_push_articles(task, feeds_by_id, articles)
+
+        self.assertEqual(web_hook_mock.call_count, 1)
+        hook = web_hook_mock.call_args.args[0]
+        self.assertEqual(hook.task.message_type, 2)
+        self.assertEqual(result["success_count"], 1)
+        self.assertEqual(result["failure_count"], 0)

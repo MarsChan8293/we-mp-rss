@@ -5,6 +5,10 @@ from jobs.webhook import MessageWebHook, web_hook
 SUPPORTED_BATCH_PUSH_MESSAGE_TYPES = (1, 2)
 
 
+def _has_non_whitespace_text(value):
+    return bool(value and str(value).strip())
+
+
 def validate_batch_push_task(task):
     if task is None:
         raise ValueError("消息任务不存在")
@@ -12,9 +16,9 @@ def validate_batch_push_task(task):
         raise ValueError("只能选择启用中的消息任务")
     if getattr(task, "message_type", None) not in SUPPORTED_BATCH_PUSH_MESSAGE_TYPES:
         raise ValueError("批量推送仅支持 WebHook 或 Email 类型任务")
-    if task.message_type == 1 and not getattr(task, "web_hook_url", ""):
+    if task.message_type == 1 and not _has_non_whitespace_text(getattr(task, "web_hook_url", "")):
         raise ValueError("WebHook 任务的 web_hook_url 不能为空")
-    if task.message_type == 2 and not getattr(task, "email_to", ""):
+    if task.message_type == 2 and not _has_non_whitespace_text(getattr(task, "email_to", "")):
         raise ValueError("Email 任务的 email_to 不能为空")
     return task
 
