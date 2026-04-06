@@ -103,6 +103,77 @@ const formatDebugText = (value: unknown, emptyText = '无') => {
   }
 }
 
+const parseHeaders = (headers: string | undefined) => {
+  if (!headers?.trim()) {
+    return {}
+  }
+  try {
+    const parsed = JSON.parse(headers)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return Object.fromEntries(
+        Object.entries(parsed).map(([key, value]) => [key, String(value)])
+      )
+    }
+  } catch (error) {
+    console.error(error)
+  }
+  return {}
+}
+
+const parseCookies = (cookies: string | undefined) => {
+  if (!cookies?.trim()) {
+    return null
+  }
+
+  const cookieEntries = cookies
+    .split(';')
+    .map(item => item.trim())
+    .filter(Boolean)
+    .map(item => {
+      const separatorIndex = item.indexOf('=')
+      if (separatorIndex === -1) {
+        return [item, '']
+      }
+      return [
+        item.slice(0, separatorIndex).trim(),
+        item.slice(separatorIndex + 1).trim(),
+      ]
+    })
+
+  return cookieEntries.length ? Object.fromEntries(cookieEntries) : null
+}
+
+const getErrorMessage = (error: unknown) => {
+  if (typeof error === 'string') {
+    return error
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  if (error && typeof error === 'object') {
+    const errorObject = error as Record<string, any>
+    if (typeof errorObject.message === 'string') {
+      return errorObject.message
+    }
+    if (typeof errorObject.detail === 'string') {
+      return errorObject.detail
+    }
+    if (typeof errorObject.detail?.message === 'string') {
+      return errorObject.detail.message
+    }
+    if (typeof errorObject.response?.data?.message === 'string') {
+      return errorObject.response.data.message
+    }
+    if (typeof errorObject.response?.data?.detail === 'string') {
+      return errorObject.response.data.detail
+    }
+    if (typeof errorObject.response?.data?.detail?.message === 'string') {
+      return errorObject.response.data.detail.message
+    }
+  }
+  return String(error || '测试失败')
+}
+
 const getResponseText = (result: MessageTaskTestData | null) => {
   if (!result) {
     return '无响应内容'
@@ -120,6 +191,32 @@ const getRequestHeadersText = (result: MessageTaskTestData | null) => {
   return formatDebugText(result.result.request.headers, '无请求头信息')
 }
 
+const buildFallbackRequestHeaders = () => {
+  if (formData.value.message_type === 1) {
+    return parseHeaders(formData.value.headers)
+  }
+
+  if (formData.value.message_type === 2) {
+    const metadata: Record<string, string> = {
+      'Content-Type': (formData.value.email_content_type || 'text').trim() || 'text',
+    }
+
+    if (formData.value.email_to?.trim()) {
+      metadata.To = formData.value.email_to.trim()
+    }
+    if (formData.value.email_cc?.trim()) {
+      metadata.Cc = formData.value.email_cc.trim()
+    }
+    if (formData.value.email_subject_template?.trim()) {
+      metadata.Subject = formData.value.email_subject_template.trim()
+    }
+
+    return metadata
+  }
+
+  return {}
+}
+
 const getCurrentTarget = () => {
   if (formData.value.message_type === 1) {
     return formData.value.web_hook_url || ''
@@ -128,6 +225,56 @@ const getCurrentTarget = () => {
     return formData.value.email_to || ''
   }
   return ''
+}
+
+const buildFallbackTestResult = (error: unknown): MessageTaskTestData => {
+  const errorObject = error && typeof error === 'object'
+    ? error as Record<string, any>
+    : null
+  const errorPayload = errorObject?.data && typeof errorObject.data === 'object'
+    ? errorObject.data as Record<string, any>
+    : errorObject?.response?.data && typeof errorObject.response.data === 'object'
+      ? errorObject.response.data as Record<string, any>
+      : null
+  const detailPayload = errorPayload?.detail && typeof errorPayload.detail === 'object'
+    ? errorPayload.detail as Record<string, any>
+    : null
+  const resultPayload = errorPayload?.result && typeof errorPayload.result === 'object'
+    ? errorPayload
+    : detailPayload?.result && typeof detailPayload.result === 'object'
+      ? detailPayload
+      : null
+  const errorMessage = getErrorMessage(error)
+
+  return {
+    task_id: resultPayload?.task_id || taskId.value || '',
+    task_name: resultPayload?.task_name || formData.value.name,
+    message_type: typeof resultPayload?.message_type === 'number'
+      ? resultPayload.message_type
+      : formData.value.message_type,
+    feed_name: resultPayload?.feed_name || '未返回',
+    result: {
+      success: false,
+      summary: resultPayload?.result?.summary || errorMessage || '测试请求失败',
+      request: {
+        url: resultPayload?.result?.request?.url || getCurrentTarget(),
+        message_type: typeof resultPayload?.result?.request?.message_type === 'number'
+          ? resultPayload.result.request.message_type
+          : formData.value.message_type,
+        headers: resultPayload?.result?.request?.headers || buildFallbackRequestHeaders(),
+        cookies: resultPayload?.result?.request?.cookies || (
+          formData.value.message_type === 1 ? parseCookies(formData.value.cookies) : null
+        ),
+        payload: resultPayload?.result?.request?.payload || formData.value.message_template || '',
+      },
+      response: {
+        status_code: resultPayload?.result?.response?.status_code ?? null,
+        body: resultPayload?.result?.response?.body ?? null,
+        raw_text: resultPayload?.result?.response?.raw_text ?? null,
+      },
+      error: resultPayload?.result?.error || errorMessage,
+    },
+  }
 }
 
 const validateChannelFields = () => {
@@ -210,30 +357,8 @@ const handleTest = async () => {
     }
   } catch (error) {
     console.error(error)
-    testResult.value = {
-      task_id: taskId.value,
-      task_name: formData.value.name,
-      message_type: formData.value.message_type,
-      feed_name: '未返回',
-      result: {
-        success: false,
-        summary: '测试请求失败',
-        request: {
-          url: getCurrentTarget(),
-          message_type: formData.value.message_type,
-          headers: {},
-          cookies: null,
-          payload: '',
-        },
-        response: {
-          status_code: null,
-          body: null,
-          raw_text: null,
-        },
-        error: String(error || '测试失败'),
-      },
-    }
-    Message.error(String(error || '测试失败'))
+    testResult.value = buildFallbackTestResult(error)
+    Message.error(testResult.value.result.error || testResult.value.result.summary || '测试失败')
   } finally {
     testLoading.value = false
   }
