@@ -357,7 +357,7 @@ class CascadeTaskDispatcher:
                 feeds = session.query(Feed).filter(Feed.id.in_(feed_ids)).all()
             else:
                 print_info(f"任务 {task.name} 未配置关联公众号，默认使用全部已订阅公众号")
-                feeds = session.query(Feed).all()
+                feeds = session.query(Feed).filter(Feed.status == 1).all()
 
             if not feeds:
                 print_warning(f"任务 {task.name} 没有关联公众号")

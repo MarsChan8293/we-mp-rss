@@ -20,8 +20,12 @@ class CascadeTaskDispatcherTests(unittest.TestCase):
         query.all.return_value = [
             SimpleNamespace(id="mp-a", mp_name="公众号A"),
             SimpleNamespace(id="mp-b", mp_name="公众号B"),
+            SimpleNamespace(id="mp-disabled", mp_name="已禁用公众号"),
         ]
-        query.filter.return_value.all.return_value = []
+        query.filter.return_value.all.return_value = [
+            SimpleNamespace(id="mp-a", mp_name="公众号A"),
+            SimpleNamespace(id="mp-b", mp_name="公众号B"),
+        ]
         get_session_mock.return_value = session
 
         dispatcher = CascadeTaskDispatcher()
@@ -39,6 +43,7 @@ class CascadeTaskDispatcherTests(unittest.TestCase):
         second_batch = create_pending_allocation_mock.call_args_list[1][0][1]
         self.assertEqual([feed.id for feed in first_batch], ["mp-a"])
         self.assertEqual([feed.id for feed in second_batch], ["mp-b"])
+        query.filter.assert_called_once()
         notify_children_new_task_mock.assert_called_once_with("alloc-1", 2)
 
 
