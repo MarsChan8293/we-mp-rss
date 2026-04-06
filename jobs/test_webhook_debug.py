@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from core.notice.welink import send_welink_message
-from jobs.webhook import MessageWebHook, call_webhook
+from jobs.webhook import MessageWebHook, call_webhook, web_hook
 
 
 class TestWebhookDebug(unittest.TestCase):
@@ -70,6 +70,26 @@ class TestWebhookDebug(unittest.TestCase):
         self.assertIn('"uuid":', result["payload"])
         self.assertNotIn("summary", result)
         self.assertNotIn("request", result)
+
+    @patch("core.notice.welink.requests.post")
+    def test_welink_business_error_body_is_reported_as_failure(self, post_mock):
+        response = Mock()
+        response.status_code = 200
+        response.text = '{"errMsg":"WEBHOOKID_PARAM_ERROR","status":0,"data":null}'
+        response.json.return_value = {"errMsg": "WEBHOOKID_PARAM_ERROR", "status": 0, "data": None}
+        response.raise_for_status.return_value = None
+        post_mock.return_value = response
+
+        result = send_welink_message(
+            "https://open.welink.huaweicloud.com/api/werobot/v1/webhook/send?token=1",
+            "welink",
+            '{"title":"welink"}',
+            return_debug=True,
+        )
+
+        self.assertEqual(result["status_code"], 200)
+        self.assertEqual(result["body"]["status"], 0)
+        self.assertEqual(result["error"], "WEBHOOKID_PARAM_ERROR")
 
     @patch("jobs.webhook.send_welink_message")
     def test_welink_test_mode_returns_wrapped_payload(self, send_mock):
@@ -147,3 +167,33 @@ class TestWebhookDebug(unittest.TestCase):
             )
 
         send_mock.assert_called_once()
+
+    @patch("jobs.webhook.call_webhook")
+    def test_web_hook_accepts_article_objects_before_routing(self, call_webhook_mock):
+        task = SimpleNamespace(
+            id="task-1",
+            name="welink",
+            message_type=1,
+            message_template='{"title":"{{ task.name }}"}',
+            web_hook_url="https://example.com/webhook",
+            headers="",
+            cookies="",
+        )
+        feed = SimpleNamespace(id="feed-1", mp_name="GiantPandaLLM")
+        article = SimpleNamespace(
+            id="article-1",
+            mp_id="feed-1",
+            title="Test title",
+            pic_url="https://example.com/pic.png",
+            url="https://example.com/article",
+            description="desc",
+            publish_time="2026-04-05 19:00:00",
+            content="<p>hello</p>",
+        )
+        call_webhook_mock.return_value = "Webhook调用成功"
+
+        result = web_hook(MessageWebHook(task=task, feed=feed, articles=[article]), is_test=False)
+
+        self.assertEqual(result, "Webhook调用成功")
+        routed_hook = call_webhook_mock.call_args[0][0]
+        self.assertEqual(routed_hook.articles[0]["title"], "Test title")

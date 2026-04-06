@@ -29,6 +29,16 @@ class BatchPushArticleHttpApiTests(unittest.TestCase):
         self.client = build_test_client()
         self.addCleanup(self.client.close)
 
+    def test_post_batch_push_rejects_invalid_request_body(self):
+        response = self.client.post(
+            "/wx/articles/batch_push",
+            json={"task_id": "task-1"},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        detail = response.json()["detail"]
+        self.assertTrue(any(item["loc"][-1] == "article_ids" for item in detail))
+
     @patch("apis.article.batch_push_articles")
     @patch("apis.article.DB.get_session")
     def test_post_batch_push_returns_success_response_shape(self, get_session_mock, batch_push_mock):
@@ -77,6 +87,46 @@ class BatchPushArticleHttpApiTests(unittest.TestCase):
         self.assertEqual(
             response.json(),
             {"code": 404, "message": "消息任务不存在", "data": None},
+        )
+
+    @patch("apis.article.batch_push_articles")
+    @patch("apis.article.DB.get_session")
+    def test_post_batch_push_returns_error_response_when_service_raises_value_error(self, get_session_mock, batch_push_mock):
+        task = SimpleNamespace(id="task-1", name="Webhook Push", message_type=1, status=1)
+        articles = [SimpleNamespace(id="a-1", mp_id="mp-a")]
+        feeds = [SimpleNamespace(id="mp-a", mp_name="公众号A")]
+        get_session_mock.return_value = build_session(task=task, articles=articles, feeds=feeds)
+        batch_push_mock.side_effect = ValueError("只能选择启用中的消息任务")
+
+        response = self.client.post(
+            "/wx/articles/batch_push",
+            json={"task_id": "task-1", "article_ids": ["a-1"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"code": 400, "message": "只能选择启用中的消息任务", "data": None},
+        )
+
+    @patch("apis.article.batch_push_articles")
+    @patch("apis.article.DB.get_session")
+    def test_post_batch_push_returns_error_response_when_service_raises_unexpected_error(self, get_session_mock, batch_push_mock):
+        task = SimpleNamespace(id="task-1", name="Webhook Push", message_type=1, status=1)
+        articles = [SimpleNamespace(id="a-1", mp_id="mp-a")]
+        feeds = [SimpleNamespace(id="mp-a", mp_name="公众号A")]
+        get_session_mock.return_value = build_session(task=task, articles=articles, feeds=feeds)
+        batch_push_mock.side_effect = RuntimeError("推送服务异常")
+
+        response = self.client.post(
+            "/wx/articles/batch_push",
+            json={"task_id": "task-1", "article_ids": ["a-1"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"code": 500, "message": "推送服务异常", "data": None},
         )
 
 
@@ -170,3 +220,18 @@ class BatchPushArticleApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["code"], 400)
         self.assertEqual(result["message"], "只能选择启用中的消息任务")
+
+    @patch("apis.article.batch_push_articles")
+    @patch("apis.article.DB.get_session")
+    async def test_batch_push_selected_articles_maps_unexpected_error_to_server_error(self, get_session_mock, batch_push_mock):
+        task = SimpleNamespace(id="task-1", name="Webhook Push", message_type=1, status=1)
+        articles = [SimpleNamespace(id="a-1", mp_id="mp-a")]
+        feeds = [SimpleNamespace(id="mp-a", mp_name="公众号A")]
+        get_session_mock.return_value = build_session(task=task, articles=articles, feeds=feeds)
+        batch_push_mock.side_effect = RuntimeError("推送服务异常")
+        request = ArticleBatchPushRequest(task_id="task-1", article_ids=["a-1"])
+
+        result = await batch_push_selected_articles(request, current_user={"id": "u-1"})
+
+        self.assertEqual(result["code"], 500)
+        self.assertEqual(result["message"], "推送服务异常")

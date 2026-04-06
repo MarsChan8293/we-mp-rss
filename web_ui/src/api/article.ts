@@ -55,6 +55,31 @@ export interface ArticleListResult {
   data: Article[]
 }
 
+export interface ArticleBatchPushRequest {
+  task_id: string
+  article_ids: Array<string | number>
+}
+
+export interface ArticleBatchPushResultItem {
+  mp_id: string
+  mp_name?: string
+  success: boolean
+  summary?: string
+  error?: string | null
+}
+
+export interface ArticleBatchPushResult {
+  task_id: string
+  task_name: string
+  message_type: number
+  total_articles: number
+  total_groups: number
+  success_count: number
+  failure_count: number
+  results: ArticleBatchPushResultItem[]
+  summary: string
+}
+
 /**
  * 获取文章列表
  * @param params 查询参数
@@ -186,3 +211,6 @@ export const toggleArticleFavoriteStatus = (id: number | string, is_favorite: bo
   })
 }
 
+export const batchPushArticles = (data: ArticleBatchPushRequest) => {
+  return http.post<ArticleBatchPushResult>('/wx/articles/batch_push', data)
+}

@@ -353,8 +353,11 @@ class CascadeTaskDispatcher:
         try:
             mps_list = json.loads(task.mps_id) if task.mps_id else []
             feed_ids = [mp["id"] for mp in mps_list]
-
-            feeds = session.query(Feed).filter(Feed.id.in_(feed_ids)).all()
+            if feed_ids:
+                feeds = session.query(Feed).filter(Feed.id.in_(feed_ids)).all()
+            else:
+                print_info(f"任务 {task.name} 未配置关联公众号，默认使用全部已订阅公众号")
+                feeds = session.query(Feed).all()
 
             if not feeds:
                 print_warning(f"任务 {task.name} 没有关联公众号")

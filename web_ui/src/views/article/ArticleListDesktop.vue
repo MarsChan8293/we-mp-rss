@@ -140,6 +140,11 @@
                     </template>Text</a-doption>
                 </template>
               </a-dropdown>
+              <a-button type="primary" @click="handleBatchPushShow" :disabled="!selectedRowKeys.length">
+                <template #icon><icon-share-external /></template>
+                批量推送
+              </a-button>
+              <ArticleBatchPushModal ref="articleBatchPushModal" @success="handleBatchPushSuccess" />
               <a-button type="primary" status="danger" @click="handleBatchDelete" :disabled="!selectedRowKeys.length">
                 <template #icon><icon-delete /></template>
                 批量删除
@@ -276,6 +281,7 @@ import { IconApps, IconAtt, IconDelete, IconEdit, IconEye, IconRefresh, IconScan
 import { getArticles, deleteArticle as deleteArticleApi, ClearArticle, ClearDuplicateArticle, getArticleDetail, getRefreshArticleTaskStatus, refreshArticle as refreshArticleApi, toggleArticleFavoriteStatus, toggleArticleReadStatus } from '@/api/article'
 import { ExportOPML, ExportMPS, ImportMPS } from '@/api/export'
 import ExportModal from '@/components/ExportModal.vue'
+import ArticleBatchPushModal from '@/components/ArticleBatchPushModal.vue'
 import { addFeaturedArticle, getFeaturedArticleTaskStatus, getSubscriptions, UpdateMps, toggleMpStatus as toggleMpStatusApi } from '@/api/subscription'
 import { inject } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
@@ -293,6 +299,7 @@ const mpList = ref([])
 const mpLoading = ref(false)
 const activeMpId = ref('')
 const exportModal = ref()
+const articleBatchPushModal = ref()
 const selectedRowKeys = ref([])
 const mpPagination = ref({
   current: 1,
@@ -1038,6 +1045,14 @@ const handleExportShow = async () => {
   let ids=selectedRowKeys.value
   let mp_name=activeFeed.value?.name || activeFeed.value?.mp_name || '全部'
   exportModal.value.show(mp_id,ids,mp_name)
+}
+
+const handleBatchPushShow = () => {
+  articleBatchPushModal.value?.show(selectedRowKeys.value)
+}
+
+const handleBatchPushSuccess = () => {
+  selectedRowKeys.value = []
 }
 
 

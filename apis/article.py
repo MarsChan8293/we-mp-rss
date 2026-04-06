@@ -18,9 +18,6 @@ from core.config import cfg
 from apis.base import format_search_kw
 from core.print import print_warning, print_info, print_error, print_success
 from core.cache import clear_cache_pattern
-from tools.fix import fix_article
-from core.article_content import sync_article_content
-from driver.wxarticle import WXArticleFetcher
 router = APIRouter(prefix=f"/articles", tags=["文章管理"])
 
 _refresh_tasks = {}
@@ -45,6 +42,24 @@ def _get_active_refresh_task(article_id: str):
             if task.get("status") in {"pending", "running"}:
                 return dict(task)
     return None
+
+
+def _build_wx_article_fetcher():
+    from driver.wxarticle import WXArticleFetcher
+
+    return WXArticleFetcher()
+
+
+def _sync_article_content(*args, **kwargs):
+    from core.article_content import sync_article_content
+
+    return sync_article_content(*args, **kwargs)
+
+
+def _fix_article(article):
+    from tools.fix import fix_article
+
+    return fix_article(article)
 
 
 def _run_refresh_article_task(task_id: str, article_id: str):
@@ -78,7 +93,7 @@ def _run_refresh_article_task(task_id: str, article_id: str):
             })
             return
 
-        fetcher = WXArticleFetcher()
+        fetcher = _build_wx_article_fetcher()
         fetched = fetcher.get_article_content(target_url)
         fetched_content = fetched.get("content")
 
@@ -496,7 +511,7 @@ def get_article_detail(
                 )
             )
         if content:
-            updated, _ = sync_article_content(
+            updated, _ = _sync_article_content(
                 session=session,
                 article=article,
                 preferred_mode=cfg.get("gather.content_mode", "web"),
@@ -506,7 +521,7 @@ def get_article_detail(
                 clear_cache_pattern("article_detail")
                 clear_cache_pattern("home_page")
                 clear_cache_pattern("tag_detail")
-        return success_response(fix_article(article))
+        return success_response(_fix_article(article))
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -590,7 +605,7 @@ def get_next_article(
                 )
             )
         if content:
-            updated, _ = sync_article_content(
+            updated, _ = _sync_article_content(
                 session=session,
                 article=next_article,
                 preferred_mode=cfg.get("gather.content_mode", "web"),
@@ -600,7 +615,7 @@ def get_next_article(
                 clear_cache_pattern("article_detail")
                 clear_cache_pattern("home_page")
                 clear_cache_pattern("tag_detail")
-        return success_response(fix_article(next_article))
+        return success_response(_fix_article(next_article))
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -648,7 +663,7 @@ def get_prev_article(
                 )
             )
         if content:
-            updated, _ = sync_article_content(
+            updated, _ = _sync_article_content(
                 session=session,
                 article=prev_article,
                 preferred_mode=cfg.get("gather.content_mode", "web"),
@@ -658,7 +673,7 @@ def get_prev_article(
                 clear_cache_pattern("article_detail")
                 clear_cache_pattern("home_page")
                 clear_cache_pattern("tag_detail")
-        return success_response(fix_article(prev_article))
+        return success_response(_fix_article(prev_article))
     except HTTPException as e:
         raise e
     except Exception as e:

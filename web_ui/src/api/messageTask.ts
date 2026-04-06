@@ -6,13 +6,22 @@ import type {
   MessageTaskTestRequest,
 } from '@/types/messageTask'
 
-export const listMessageTasks = (params?: { offset?: number; limit?: number }) => {
-  console.log(params)
+export interface MessageTaskListResponse {
+  list: MessageTask[]
+  page: {
+    offset: number
+    limit: number
+  }
+  total: number
+}
+
+export const listMessageTasks = (params?: { offset?: number; limit?: number; status?: number }) => {
   const apiParams = {
     offset: (params?.offset || 0) ,
-    limit: params?.limit || 10
+    limit: params?.limit || 10,
+    status: params?.status
   }
-  return http.get<MessageTask>('/wx/message_tasks', { params: apiParams })
+  return http.get<MessageTaskListResponse>('/wx/message_tasks', { params: apiParams })
 }
 export const getMessageTask = (id: string): Promise<MessageTask> => {
   return http.get<any>(`/wx/message_tasks/${id}`) as any

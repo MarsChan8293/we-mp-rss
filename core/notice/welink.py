@@ -4,6 +4,20 @@ import uuid
 
 import requests
 
+def _get_welink_business_error(parsed_body):
+    if not isinstance(parsed_body, dict):
+        return None
+
+    code = parsed_body.get("code")
+    if code is not None and str(code) not in {"0", "200"}:
+        return parsed_body.get("message") or parsed_body.get("errMsg") or f"WeLink 业务状态异常: code={code}"
+
+    status = parsed_body.get("status")
+    if status is not None and str(status) not in {"1", "200", "true", "True"}:
+        return parsed_body.get("errMsg") or parsed_body.get("message") or f"WeLink 业务状态异常: status={status}"
+
+    return None
+
 def send_welink_message(webhook_url, title, text, return_debug: bool = False):
     timestamp = int(time.time() * 1000)
     msg_uuid = str(uuid.uuid4()).replace("-", "")
@@ -29,6 +43,9 @@ def send_welink_message(webhook_url, title, text, return_debug: bool = False):
         except ValueError:
             parsed_body = None
         response.raise_for_status()
+        business_error = _get_welink_business_error(parsed_body)
+        if business_error is not None:
+            raise ValueError(business_error)
         debug_result = {
             "status_code": response.status_code,
             "body": parsed_body,
