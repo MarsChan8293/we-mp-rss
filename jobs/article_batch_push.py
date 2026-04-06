@@ -12,6 +12,10 @@ def validate_batch_push_task(task):
         raise ValueError("只能选择启用中的消息任务")
     if getattr(task, "message_type", None) not in SUPPORTED_BATCH_PUSH_MESSAGE_TYPES:
         raise ValueError("批量推送仅支持 WebHook 或 Email 类型任务")
+    if task.message_type == 1 and not getattr(task, "web_hook_url", ""):
+        raise ValueError("WebHook 任务的 web_hook_url 不能为空")
+    if task.message_type == 2 and not getattr(task, "email_to", ""):
+        raise ValueError("Email 任务的 email_to 不能为空")
     return task
 
 
@@ -35,7 +39,19 @@ def batch_push_articles(task, feeds_by_id, articles):
     for mp_id, group in grouped_articles.items():
         feed = feeds_by_id.get(mp_id)
         if feed is None:
-            raise ValueError(f"公众号不存在: {mp_id}")
+            results.append(
+                {
+                    "mp_id": mp_id,
+                    "mp_name": None,
+                    "article_count": len(group),
+                    "article_ids": [article.id for article in group],
+                    "success": False,
+                    "summary": f"公众号不存在: {mp_id}",
+                    "error": f"公众号不存在: {mp_id}",
+                }
+            )
+            failure_count += 1
+            continue
 
         try:
             web_hook(MessageWebHook(task=task, feed=feed, articles=group))

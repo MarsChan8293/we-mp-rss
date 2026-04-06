@@ -50,6 +50,24 @@ class BatchPushArticlesTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_batch_push_task(task)
 
+    def test_validate_batch_push_task_rejects_missing_web_hook_url(self):
+        task = self.build_task(web_hook_url="")
+
+        with self.assertRaises(ValueError):
+            validate_batch_push_task(task)
+
+    def test_validate_batch_push_task_rejects_missing_email_to(self):
+        task = self.build_task(message_type=2, web_hook_url="", email_to="")
+
+        with self.assertRaises(ValueError):
+            validate_batch_push_task(task)
+
+    def test_batch_push_articles_rejects_empty_article_selection(self):
+        task = self.build_task()
+
+        with self.assertRaises(ValueError):
+            batch_push_articles(task, {}, [])
+
     @patch("jobs.article_batch_push.web_hook")
     def test_batch_push_articles_groups_articles_by_mp_id(self, web_hook_mock):
         task = self.build_task()
@@ -89,3 +107,42 @@ class BatchPushArticlesTests(unittest.TestCase):
         self.assertEqual(result["failure_count"], 1)
         self.assertEqual(result["results"][0]["success"], False)
         self.assertEqual(result["results"][1]["success"], True)
+
+    @patch("jobs.article_batch_push.web_hook")
+    def test_batch_push_articles_records_missing_feed_and_continues(self, web_hook_mock):
+        task = self.build_task()
+        feeds_by_id = {
+            "mp-a": self.build_feed("mp-a", "公众号A"),
+        }
+        articles = [
+            self.build_article("a-1", "mp-a", "A1"),
+            self.build_article("b-1", "mp-b", "B1"),
+        ]
+
+        result = batch_push_articles(task, feeds_by_id, articles)
+
+        self.assertEqual(web_hook_mock.call_count, 1)
+        self.assertEqual(result["success_count"], 1)
+        self.assertEqual(result["failure_count"], 1)
+        self.assertEqual(result["results"][1]["mp_id"], "mp-b")
+        self.assertFalse(result["results"][1]["success"])
+        self.assertEqual(result["results"][1]["error"], "公众号不存在: mp-b")
+
+    @patch("jobs.article_batch_push.web_hook")
+    def test_batch_push_articles_passes_grouped_articles_to_web_hook(self, web_hook_mock):
+        task = self.build_task()
+        feeds_by_id = {
+            "mp-a": self.build_feed("mp-a", "公众号A"),
+        }
+        articles = [
+            self.build_article("a-1", "mp-a", "A1"),
+            self.build_article("a-2", "mp-a", "A2"),
+        ]
+
+        batch_push_articles(task, feeds_by_id, articles)
+
+        self.assertEqual(web_hook_mock.call_count, 1)
+        hook = web_hook_mock.call_args.args[0]
+        self.assertEqual(hook.task, task)
+        self.assertEqual(hook.feed, feeds_by_id["mp-a"])
+        self.assertEqual([article.id for article in hook.articles], ["a-1", "a-2"])
