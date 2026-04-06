@@ -146,13 +146,18 @@ class PlaywrightController:
                 browser_type = self.driver.chromium  # 默认使用chromium
             print(f"启动浏览器: {browser_name}, 无头模式: {headless}, 移动模式: {mobile_mode}, 反爬虫: {anti_crawler}")
             # 设置启动选项
+
+            # 根据浏览器类型使用不同的参数
             launch_options = {
-                "headless": headless,
-                # 禁用用户特征收集
-                "args": [
-                    "--disable-blink-features=AutomationControlled",  # 禁用自动化检测
+                "headless": headless
+            }
+
+            if browser_name.lower() == "chromium":
+                # Chromium 浏览器参数（支持最丰富）
+                launch_options["args"] = [
+                    # "--disable-blink-features=AutomationControlled",  # 禁用自动化检测
+                    # "--disable-web-security",  # 禁用同源策略（可选）
                     "--disable-features=IsolateOrigins,site-per-process",  # 禁用站点隔离
-                    "--disable-web-security",  # 禁用同源策略（可选）
                     "--disable-webrtc",  # 禁用 WebRTC（防止真实 IP 泄露）
                     "--disable-extensions",  # 禁用扩展
                     "--disable-plugins",  # 禁用插件
@@ -163,11 +168,55 @@ class PlaywrightController:
                     "--no-first-run",  # 跳过首次运行
                     "--disable-default-apps",  # 禁用默认应用
                     "--no-default-browser-check",  # 跳过默认浏览器检查
-                    "--no-sandbox",
                     "--disable-dev-shm-usage",
-                    "--disable-gpu", # 可选：禁用GPU以统一渲染特征
+                    "--disable-gpu",  # 可选：禁用GPU以统一渲染特征
                 ]
-            }
+
+            elif browser_name.lower() == "firefox":
+                # Firefox 使用 firefox_user_prefs 配置，不是 args
+                launch_options["firefox_user_prefs"] = {
+                    # 禁用 WebDriver 检测
+                    "dom.webdriver.enabled": False,
+                    # 禁用 WebRTC（防止 IP 泄露）
+                    "media.peerconnection.enabled": False,
+                    "media.navigator.enabled": False,
+                    # 禁用扩展
+                    "extensions.autoDisableScopes": 15,
+                    "xpinstall.signatures.required": False,
+                    # 隐私保护
+                    "privacy.trackingprotection.enabled": True,
+                    "privacy.trackingprotection.pbmode.enabled": True,
+                    # 禁用遥测
+                    "toolkit.telemetry.enabled": False,
+                    "datareporting.healthreport.uploadEnabled": False,
+                    # 性能优化
+                    "browser.cache.disk.enable": True,
+                    "browser.sessionstore.enabled": True,
+                }
+                # Firefox 不使用 args 参数，但可以添加少量通用参数
+                launch_options["args"] = []
+
+            elif browser_name.lower() == "webkit":
+                # WebKit 浏览器参数（支持很少，保持最小化）
+                launch_options["args"] = []
+                # WebKit 的反爬虫功能主要通过 JavaScript 注入实现（在 _apply_anti_crawler_scripts 中）
+            else:
+                # 默认使用 Chromium 配配置
+                launch_options["args"] = [
+                    "--disable-features=IsolateOrigins,site-per-process",
+                    "--disable-webrtc",
+                    "--disable-extensions",
+                    "--disable-plugins",
+                    "--disable-images",
+                    "--disable-background-networking",
+                    "--disable-sync",
+                    "--metrics-recording-only",
+                    "--no-first-run",
+                    "--disable-default-apps",
+                    "--no-default-browser-check",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                ]
 
             proxy_options = self._build_proxy_options(proxy_url)
             if proxy_options:

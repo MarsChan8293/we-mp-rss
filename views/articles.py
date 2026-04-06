@@ -31,7 +31,8 @@ async def articles_view(
     tag_id: Optional[str] = Query(None, description="标签ID筛选"),
     keyword: Optional[str] = Query(None, description="关键词搜索"),
     sort: str = Query("publish_time", description="排序方式: publish_time, created_at"),
-    order: str = Query("desc", description="排序顺序: asc, desc")
+    order: str = Query("desc", description="排序顺序: asc, desc"),
+    has_content: Optional[str] = Query(None, description="只显示有正文的文章: 1/空")
 ):
     """
     文章列表页面，支持筛选、搜索和排序
@@ -68,6 +69,10 @@ async def articles_view(
             search_filter = format_search_kw(keyword.strip())
             if search_filter is not None:
                 base_conditions.append(search_filter)
+        # 只显示有正文的文章
+        if has_content == "1":
+            base_conditions.append(Article.content.isnot(None))
+            base_conditions.append(Article.content != "")
         
         # 使用单一查询获取文章和Feed信息
         from sqlalchemy import and_
@@ -197,6 +202,8 @@ async def articles_view(
                 params.append(f"sort={sort}")
             if order != "desc":
                 params.append(f"order={order}")
+            if has_content == "1":
+                params.append(f"has_content={has_content}")
             params.append(f"page={page_num}")
             params.append(f"limit={limit}")
             return "/views/articles?" + "&".join(params)
@@ -227,7 +234,8 @@ async def articles_view(
                 "tag_id": tag_id,
                 "keyword": keyword,
                 "sort": sort,
-                "order": order
+                "order": order,
+                "has_content": has_content
             },
             "breadcrumb": breadcrumb
         })
