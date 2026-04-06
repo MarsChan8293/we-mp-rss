@@ -112,8 +112,23 @@ class ConfigManager:
             config = self._load_config()
         config_list = []
         from core.config import cfg
-        keys=cfg.get("safe.hide_config","db").split(",")
-        print(keys)
+        mandatory_hidden_keys = [
+            "db",
+            "secret",
+            "token",
+            "notice.wechat",
+            "notice.feishu",
+            "notice.dingding",
+            "notice.bark",
+            "smtp.password",
+        ]
+        configured_hidden_keys = [
+            key.strip()
+            for key in cfg.get("safe.hide_config", "db").split(",")
+            if key.strip()
+        ]
+        keys = set(configured_hidden_keys)
+        keys.update(mandatory_hidden_keys)
         try:
             for key, value in config.items():
                 if key in keys:

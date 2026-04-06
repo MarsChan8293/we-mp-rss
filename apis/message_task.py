@@ -20,6 +20,25 @@ from .message_task_test_helpers import build_test_task_from_request
 router = APIRouter(prefix="/message_tasks", tags=["消息任务"])
 
 
+def normalize_email_content_type(value: Optional[str]) -> str:
+    content_type = (value or "text").strip().lower()
+    if content_type not in ("text", "html"):
+        raise ValueError("email_content_type 仅支持 text 或 html")
+    return content_type
+
+
+SUPPORTED_TEST_MESSAGE_TYPES = (1, 2)
+
+
+def validate_message_task_channel(task_data: "MessageTaskCreate") -> str:
+    email_content_type = normalize_email_content_type(task_data.email_content_type)
+    if task_data.message_type == 1 and not (task_data.web_hook_url or "").strip():
+        raise ValueError("WebHook 类型必须填写 web_hook_url")
+    if task_data.message_type == 2 and not (task_data.email_to or "").strip():
+        raise ValueError("Email 类型必须填写 email_to")
+    return email_content_type
+
+
 class MessageTaskTestRequest(BaseModel):
     name: Optional[str] = None
     message_type: Optional[int] = None
@@ -28,6 +47,10 @@ class MessageTaskTestRequest(BaseModel):
     headers: Optional[str] = None
     cookies: Optional[str] = None
     mps_id: Optional[str] = None
+    email_to: Optional[str] = None
+    email_cc: Optional[str] = None
+    email_subject_template: Optional[str] = None
+    email_content_type: Optional[str] = None
 
 
 @router.get("", summary="获取消息任务列表")
@@ -135,8 +158,8 @@ async def test_message_task(
                 request_overrides = request_data.dict(exclude_unset=True)
 
         test_task = build_test_task_from_request(message_task, request_overrides)
-        if test_task.message_type != 1:
-            return error_response(code=400, message="当前仅支持 WebHook 类型测试")
+        if test_task.message_type not in SUPPORTED_TEST_MESSAGE_TYPES:
+            return error_response(code=400, message="当前仅支持 WebHook 或 Email 类型测试")
 
         # 获取第一个订阅号进行测试
         from jobs.mps import get_feeds
@@ -243,7 +266,7 @@ async def run_message_task(
 
 class MessageTaskCreate(BaseModel):
     message_template: str
-    web_hook_url: str
+    web_hook_url: str = ""
     mps_id: str=""
     name: str=""
     message_type: int=0
@@ -251,6 +274,10 @@ class MessageTaskCreate(BaseModel):
     status: Optional[int] = 0
     headers: Optional[str] = ""
     cookies: Optional[str] = ""
+    email_to: Optional[str] = ""
+    email_cc: Optional[str] = ""
+    email_subject_template: Optional[str] = ""
+    email_content_type: Optional[str] = "text"
 
 @router.post("", summary="创建消息任务", status_code=status.HTTP_201_CREATED)
 async def create_message_task(
@@ -272,6 +299,7 @@ async def create_message_task(
     """
     db=DB.get_session()
     try:
+        email_content_type = validate_message_task_channel(task_data)
         db_task = MessageTask(
             id=str(uuid.uuid4()),
             message_template=task_data.message_template,
@@ -282,7 +310,11 @@ async def create_message_task(
             name=task_data.name,
             status=task_data.status if task_data.status is not None else 0,
             headers=task_data.headers if task_data.headers is not None else "",
-            cookies=task_data.cookies if task_data.cookies is not None else ""
+            cookies=task_data.cookies if task_data.cookies is not None else "",
+            email_to=task_data.email_to if task_data.email_to is not None else "",
+            email_cc=task_data.email_cc if task_data.email_cc is not None else "",
+            email_subject_template=task_data.email_subject_template if task_data.email_subject_template is not None else "",
+            email_content_type=email_content_type,
         )
         db.add(db_task)
         db.commit()
@@ -291,7 +323,7 @@ async def create_message_task(
     except Exception as e:
         db.rollback()
         print_error(e)
-        return error_response(code=500, message=str(e))
+        return error_response(code=400 if isinstance(e, ValueError) else 500, message=str(e))
 
 @router.put("/{task_id}", summary="更新消息任务")
 async def update_message_task(
@@ -319,6 +351,8 @@ async def update_message_task(
         db_task = db.query(MessageTask).filter(MessageTask.id == task_id).first()
         if not db_task:
             raise HTTPException(status_code=404, detail="Message task not found")
+
+        email_content_type = validate_message_task_channel(task_data)
         
         if task_data.message_template is not None:
             db_task.message_template = task_data.message_template
@@ -338,12 +372,19 @@ async def update_message_task(
             db_task.headers = task_data.headers
         if task_data.cookies is not None:
             db_task.cookies = task_data.cookies
+        if task_data.email_to is not None:
+            db_task.email_to = task_data.email_to
+        if task_data.email_cc is not None:
+            db_task.email_cc = task_data.email_cc
+        if task_data.email_subject_template is not None:
+            db_task.email_subject_template = task_data.email_subject_template
+        db_task.email_content_type = email_content_type
         db.commit()
         db.refresh(db_task)
         return success_response(data=db_task)
     except Exception as e:
         db.rollback()
-        return error_response(code=500, message=str(e))
+        return error_response(code=400 if isinstance(e, ValueError) else 500, message=str(e))
 @router.put("/job/fresh",summary="重载任务")
 async def fresh_message_task(
      current_user: dict = Depends(get_current_user_or_ak)

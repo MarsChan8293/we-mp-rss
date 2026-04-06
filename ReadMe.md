@@ -254,12 +254,11 @@ The following are the environment variable configurations supported in `config.y
 | `GATHER.CONTENT_AUTO_CHECK` | `False` | Whether to automatically check uncollected article content |
 | `GATHER.CONTENT_AUTO_INTERVAL` | `59` | Time interval for automatically checking uncollected article content (minutes) |
 | `GATHER.CONTENT_MODE` | `web` | Content correction mode |
-| `SAFE_HIDE_CONFIG` | `db,secret,token,notice.wechat,notice.feishu,notice.dingding` | Configuration information to hide |
+| `SAFE_HIDE_CONFIG` | `db,secret,token,notice.wechat,notice.feishu,notice.dingding,smtp.password` | Configuration information to hide |
 | `SAFE_LIC_KEY` | `RACHELOS` | Authorization encryption key |
 | `LOG_FILE` | Empty | Log file path |
 | `LOG_LEVEL` | `INFO` | Log level |
 | `EXPORT_PDF` | `False` | Whether to enable PDF export functionality |
-
 
 
 

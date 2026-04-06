@@ -204,7 +204,7 @@ http://localhost:3000
 | `GATHER.CONTENT_AUTO_CHECK` | `False` | 是否自动检查未采集文章内容 |
 | `GATHER.CONTENT_AUTO_INTERVAL` | `59` | 自动检查未采集文章内容的时间间隔（分钟） |
 | `GATHER.CONTENT_MODE` | `web` | 内容修正模式 |
-| `SAFE_HIDE_CONFIG` | `db,secret,token,notice.wechat,notice.feishu,notice.dingding` | 需要隐藏的配置信息 |
+| `SAFE_HIDE_CONFIG` | `db,secret,token,notice.wechat,notice.feishu,notice.dingding,smtp.password` | 需要隐藏的配置信息 |
 | `SAFE_LIC_KEY` | `RACHELOS` | 授权加密KEY |
 | `LOG_FILE` | 空 | 日志文件路径 |
 | `LOG_LEVEL` | `INFO` | 日志级别 |

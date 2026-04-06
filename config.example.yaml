@@ -62,6 +62,19 @@ webhook:
   #文章内容的发送格式(默认使用html格式，可选text、markdown)
   content_format: ${WEBHOOK.CONTENT_FORMAT:-html}
 
+# SMTP 邮箱发送配置，供消息任务的 Email 类型复用
+# 请仅在本地 config.yaml 或环境变量中填写真实凭据，不要提交到仓库
+smtp:
+  host: ${SMTP_HOST:-}
+  port: ${SMTP_PORT:-465}
+  username: ${SMTP_USERNAME:-}
+  password: ${SMTP_PASSWORD:-}
+  from_email: ${SMTP_FROM_EMAIL:-}
+  from_name: ${SMTP_FROM_NAME:-WeRSS}
+  use_tls: ${SMTP_USE_TLS:-False}
+  use_ssl: ${SMTP_USE_SSL:-True}
+  timeout: ${SMTP_TIMEOUT:-30}
+
 #API服务端口
 port: ${PORT:-8001}
 #调试模式
@@ -141,10 +154,10 @@ proxy:
   http_url: ${PROXY_HTTP_URL:-}
 #安全配置
 safe:
-    # 需要隐藏的配置信息，用逗号分隔 如：db,secret,token等 
-    hide_config: "${SAFE_HIDE_CONFIG:-db,secret,token,notice.wechat,notice.feishu,notice.dingding}"
-    # 授权加密KEY
-    lic_key: "${SAFE_LIC_KEY:-RACHELOS}"
+     # 需要隐藏的配置信息，用逗号分隔 如：db,secret,token等
+     hide_config: "${SAFE_HIDE_CONFIG:-db,secret,token,notice.wechat,notice.feishu,notice.dingding,smtp.password}"
+     # 授权加密KEY
+     lic_key: "${SAFE_LIC_KEY:-RACHELOS}"
 # 微信账号配置
 wechat:
   # 允许切换的账号ID列表，为空表示允许所有账号，用逗号分隔

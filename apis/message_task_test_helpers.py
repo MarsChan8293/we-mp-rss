@@ -10,6 +10,10 @@ OVERRIDE_FIELDS = (
     "headers",
     "cookies",
     "mps_id",
+    "email_to",
+    "email_cc",
+    "email_subject_template",
+    "email_content_type",
 )
 
 BASE_FIELDS = (
@@ -21,6 +25,10 @@ BASE_FIELDS = (
     "headers",
     "cookies",
     "mps_id",
+    "email_to",
+    "email_cc",
+    "email_subject_template",
+    "email_content_type",
     "status",
     "cron_exp",
 )

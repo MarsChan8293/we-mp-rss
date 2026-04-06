@@ -6,6 +6,10 @@ export interface MessageTask {
   web_hook_url: string
   headers?: string
   cookies?: string
+  email_to?: string
+  email_cc?: string
+  email_subject_template?: string
+  email_content_type?: string
   mps_id: any // JSON类型
   status: number
   cron_exp?: string
@@ -20,6 +24,10 @@ export interface MessageTaskCreate {
   web_hook_url: string
   headers?: string
   cookies?: string
+  email_to?: string
+  email_cc?: string
+  email_subject_template?: string
+  email_content_type?: string
   mps_id: any
   status?: number
   cron_exp?: string
@@ -32,6 +40,10 @@ export interface MessageTaskUpdate {
   web_hook_url?: string
   headers?: string
   cookies?: string
+  email_to?: string
+  email_cc?: string
+  email_subject_template?: string
+  email_content_type?: string
   mps_id?: any
   status?: number
   cron_exp?: string
@@ -44,6 +56,10 @@ export interface MessageTaskTestRequest {
   web_hook_url?: string
   headers?: string
   cookies?: string
+  email_to?: string
+  email_cc?: string
+  email_subject_template?: string
+  email_content_type?: string
   mps_id?: string
 }
 

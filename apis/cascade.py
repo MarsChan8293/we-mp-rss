@@ -381,6 +381,10 @@ async def get_message_tasks(
                 "status": task.status,
                 "headers": task.headers,
                 "cookies": task.cookies,
+                "email_to": task.email_to,
+                "email_cc": task.email_cc,
+                "email_subject_template": task.email_subject_template,
+                "email_content_type": task.email_content_type,
                 "created_at": task.created_at.isoformat() if task.created_at else None,
                 "updated_at": task.updated_at.isoformat() if task.updated_at else None
             })

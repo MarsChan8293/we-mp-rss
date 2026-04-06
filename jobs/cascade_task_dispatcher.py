@@ -413,6 +413,10 @@ class CascadeTaskDispatcher:
             "cron_exp": task.cron_exp,
             "headers": task.headers,
             "cookies": task.cookies,
+            "email_to": task.email_to,
+            "email_cc": task.email_cc,
+            "email_subject_template": task.email_subject_template,
+            "email_content_type": task.email_content_type,
             "feeds": [
                 {
                     "id": feed.id,
@@ -856,6 +860,10 @@ async def execute_parent_task(task_package: dict):
             cron_exp=task_package.get("cron_exp", ""),
             headers=task_package.get("headers", ""),
             cookies=task_package.get("cookies", ""),
+            email_to=task_package.get("email_to", ""),
+            email_cc=task_package.get("email_cc", ""),
+            email_subject_template=task_package.get("email_subject_template", ""),
+            email_content_type=task_package.get("email_content_type", "text"),
             status=0,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()

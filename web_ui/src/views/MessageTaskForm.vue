@@ -33,6 +33,10 @@ const formData = ref<MessageTaskCreate>({
   web_hook_url: '',
   headers: '',
   cookies: '',
+  email_to: '',
+  email_cc: '',
+  email_subject_template: '',
+  email_content_type: 'text',
   mps_id: [],
   status: 1,
   cron_exp: '*/5 * * * *'
@@ -49,6 +53,10 @@ const fetchTaskDetail = async (id: string) => {
       web_hook_url: res.web_hook_url || '',
       headers: res.headers || '',
       cookies: res.cookies || '',
+      email_to: res.email_to || '',
+      email_cc: res.email_cc || '',
+      email_subject_template: res.email_subject_template || '',
+      email_content_type: res.email_content_type || 'text',
       mps_id: res.mps_id ? JSON.parse(res.mps_id) : [],
       status: res.status || 0,
       cron_exp: res.cron_exp || '*/5 * * * *'
@@ -68,6 +76,9 @@ const fetchTaskDetail = async (id: string) => {
 }
 
 const formatMessageType = (messageType: number) => {
+  if (messageType === 2) {
+    return '2 (Email)'
+  }
   if (messageType === 1) {
     return '1 (WebHook)'
   }
@@ -102,14 +113,76 @@ const getResponseText = (result: MessageTaskTestData | null) => {
   )
 }
 
-const handleTest = async () => {
-  if (!taskId.value) return
-  if (!formData.value.web_hook_url) {
+const getRequestHeadersText = (result: MessageTaskTestData | null) => {
+  if (!result) {
+    return '无请求头信息'
+  }
+  return formatDebugText(result.result.request.headers, '无请求头信息')
+}
+
+const getCurrentTarget = () => {
+  if (formData.value.message_type === 1) {
+    return formData.value.web_hook_url || ''
+  }
+  if (formData.value.message_type === 2) {
+    return formData.value.email_to || ''
+  }
+  return ''
+}
+
+const validateChannelFields = () => {
+  if (formData.value.message_type === 1 && !formData.value.web_hook_url?.trim()) {
     Message.error('请先填写 WebHook 地址')
+    return false
+  }
+  if (formData.value.message_type === 2 && !formData.value.email_to?.trim()) {
+    Message.error('请先填写收件人邮箱')
+    return false
+  }
+  if (
+    formData.value.message_type === 2 &&
+    !['text', 'html'].includes((formData.value.email_content_type || 'text').trim().toLowerCase())
+  ) {
+    Message.error('邮件正文格式仅支持 text 或 html')
+    return false
+  }
+  return true
+}
+
+const applyExampleTemplate = () => {
+  if (formData.value.message_type === 0) {
+    formData.value.message_template =
+      '### {{feed.mp_name}} 订阅消息：\n{% if articles %}\n{% for article in articles %}\n- [**{{ article.title }}**]({{article.url}}) ({{ article.publish_time }})\n{% endfor %}\n{% else %}\n- 暂无文章\n{% endif %}'
     return
   }
-  if (formData.value.message_type !== 1) {
-    Message.error('当前仅支持 WebHook 类型测试')
+
+  if (formData.value.message_type === 1) {
+    formData.value.message_template = `{
+  "articles": [
+  {% for article in articles %}
+  {{article}}
+  {% if not loop.last %},{% endif %}
+  {% endfor %}
+  ]
+}`
+    return
+  }
+
+  formData.value.email_subject_template =
+    formData.value.email_subject_template || '{{ feed.mp_name }} 更新通知'
+  formData.value.message_template =
+    formData.value.email_content_type === 'html'
+      ? '<h2>{{ feed.mp_name }} 更新通知</h2>\n<ul>\n{% for article in articles %}\n<li><a href="{{ article.url }}">{{ article.title }}</a>（{{ article.publish_time }}）</li>\n{% endfor %}\n</ul>'
+      : '【{{ feed.mp_name }}】更新通知\n{% for article in articles %}\n- {{ article.title }}\n  {{ article.url }}\n  {{ article.publish_time }}\n{% endfor %}'
+}
+
+const handleTest = async () => {
+  if (!taskId.value) return
+  if (formData.value.message_type !== 1 && formData.value.message_type !== 2) {
+    Message.error('当前仅支持 WebHook 或 Email 类型测试')
+    return
+  }
+  if (!validateChannelFields()) {
     return
   }
 
@@ -123,6 +196,10 @@ const handleTest = async () => {
       web_hook_url: formData.value.web_hook_url,
       headers: formData.value.headers || '',
       cookies: formData.value.cookies || '',
+      email_to: formData.value.email_to || '',
+      email_cc: formData.value.email_cc || '',
+      email_subject_template: formData.value.email_subject_template || '',
+      email_content_type: formData.value.email_content_type || 'text',
       mps_id: JSON.stringify(formData.value.mps_id || []),
     }
     testResult.value = await TestMessageTask(taskId.value, payload)
@@ -142,7 +219,7 @@ const handleTest = async () => {
         success: false,
         summary: '测试请求失败',
         request: {
-          url: formData.value.web_hook_url,
+          url: getCurrentTarget(),
           message_type: formData.value.message_type,
           headers: {},
           cookies: null,
@@ -165,7 +242,7 @@ const handleTest = async () => {
 const handleSubmit = async () => {
   try {
     // 表单验证
-  
+
   loading.value = true
   
   // 表单验证
@@ -177,11 +254,25 @@ const handleSubmit = async () => {
     return
   }
 
+  if (!validateChannelFields()) {
+    loading.value = false
+    return
+  }
+
 
     loading.value = true
     // 将mps_id转换为字符串
     const submitData = {
       ...formData.value,
+      web_hook_url: formData.value.message_type === 1 ? formData.value.web_hook_url : '',
+      headers: formData.value.message_type === 1 ? formData.value.headers || '' : '',
+      cookies: formData.value.message_type === 1 ? formData.value.cookies || '' : '',
+      email_to: formData.value.message_type === 2 ? formData.value.email_to || '' : '',
+      email_cc: formData.value.message_type === 2 ? formData.value.email_cc || '' : '',
+      email_subject_template:
+        formData.value.message_type === 2 ? formData.value.email_subject_template || '' : '',
+      email_content_type:
+        formData.value.message_type === 2 ? formData.value.email_content_type || 'text' : 'text',
       mps_id: JSON.stringify(formData.value.mps_id)
     }
     
@@ -237,49 +328,72 @@ onMounted(() => {
               />
             </a-form-item>
 
-            <a-form-item label="类型" field="message_type">
-              <a-radio-group v-model="formData.message_type" type="button">
-                <a-radio :value="0">Message</a-radio>
-                <a-radio :value="1">WebHook</a-radio>
-              </a-radio-group>
-            </a-form-item>
+             <a-form-item label="类型" field="message_type">
+               <a-radio-group v-model="formData.message_type" type="button">
+                 <a-radio :value="0">Message</a-radio>
+                 <a-radio :value="1">WebHook</a-radio>
+                 <a-radio :value="2">Email</a-radio>
+               </a-radio-group>
+             </a-form-item>
 
 
-            <a-form-item label="消息模板" field="message_template">
-              <a-code-editor
-                v-model="formData.message_template"
-                placeholder="请输入消息模板内容"
-                language="custom"
-              />
-              <a-button v-if="formData.message_type === 0"
-                type="outline"
-                style="margin-top: 8px"
-                @click="formData.message_template = '### {{feed.mp_name}} 订阅消息：\n{% if articles %}\n{% for article in articles %}\n- [**{{ article.title }}**]({{article.url}}) ({{ article.publish_time }})\n{% endfor %}\n{% else %}\n- 暂无文章\n{% endif %}'">
-                使用示例消息模板
-              </a-button>
-              <a-button v-else
-                type="outline"
-                style="margin-top: 8px"
-                @click="formData.message_template = `{
-    'articles': [
-    {% for article in articles %}
-    {{article}}
-    {% if not loop.last %},{% endif %}
-    {% endfor %}
-    ]
-}`">
+             <a-form-item label="消息模板" field="message_template">
+               <a-code-editor
+                 v-model="formData.message_template"
+                 placeholder="请输入消息模板内容"
+                 language="custom"
+               />
+               <a-button
+                 type="outline"
+                 style="margin-top: 8px"
+                 @click="applyExampleTemplate"
+               >
+                 {{
+                   formData.message_type === 1
+                     ? '使用示例 WebHook 模板'
+                     : formData.message_type === 2
+                       ? '使用示例 Email 模板'
+                       : '使用示例消息模板'
+                 }}
+               </a-button>
+             </a-form-item>
 
-                使用示例WebHook模板
-              </a-button>
-            </a-form-item>
+             <a-form-item v-if="formData.message_type === 1" label="WebHook地址" field="web_hook_url">
+               <a-input
+                 v-model="formData.web_hook_url"
+                 placeholder="请输入WebHook地址"
+               />
+               <a-link href="https://open.dingtalk.com/document/orgapp/obtain-the-webhook-address-of-a-custom-robot" target="_blank">如何获取WebHook</a-link>
+             </a-form-item>
 
-            <a-form-item label="WebHook地址" field="web_hook_url">
-              <a-input
-                v-model="formData.web_hook_url"
-                placeholder="请输入WebHook地址"
-              />
-              <a-link href="https://open.dingtalk.com/document/orgapp/obtain-the-webhook-address-of-a-custom-robot" target="_blank">如何获取WebHook</a-link>
-            </a-form-item>
+             <a-form-item v-if="formData.message_type === 2" label="收件人邮箱" field="email_to">
+               <a-input
+                 v-model="formData.email_to"
+                 placeholder="请输入收件人邮箱，多个邮箱用英文逗号分隔"
+               />
+               <template #extra>多个邮箱请使用英文逗号分隔，例如：a@example.com,b@example.com</template>
+             </a-form-item>
+
+             <a-form-item v-if="formData.message_type === 2" label="抄送邮箱" field="email_cc">
+               <a-input
+                 v-model="formData.email_cc"
+                 placeholder="可选，多个邮箱用英文逗号分隔"
+               />
+             </a-form-item>
+
+             <a-form-item v-if="formData.message_type === 2" label="邮件主题模板" field="email_subject_template">
+               <a-input
+                 v-model="formData.email_subject_template"
+                 placeholder="请输入邮件主题模板，留空时回退为任务名称"
+               />
+             </a-form-item>
+
+             <a-form-item v-if="formData.message_type === 2" label="正文格式" field="email_content_type">
+               <a-radio-group v-model="formData.email_content_type" type="button">
+                 <a-radio value="text">Text</a-radio>
+                 <a-radio value="html">HTML</a-radio>
+               </a-radio-group>
+             </a-form-item>
 
             <a-form-item label="cron表达式" field="cron_exp" required>
               <a-space>
@@ -313,30 +427,40 @@ onMounted(() => {
             </a-form-item>
           </a-tab-pane>
 
-          <!-- 高级配置 -->
-          <a-tab-pane key="advanced" title="高级配置">
-            <a-alert type="info" style="margin-bottom: 16px;">
-              用于配置需要认证的WebHook接口
-            </a-alert>
+           <!-- 高级配置 -->
+           <a-tab-pane key="advanced" title="高级配置">
+             <template v-if="formData.message_type === 1">
+               <a-alert type="info" style="margin-bottom: 16px;">
+                 用于配置需要认证的 WebHook 接口
+               </a-alert>
 
-            <a-form-item label="Headers (JSON)" field="headers">
-              <a-textarea
-                v-model="formData.headers"
-                placeholder='{"Authorization": "Bearer token", "Content-Type": "application/json"}'
-                :auto-size="{ minRows: 4, maxRows: 8 }"
-              />
-              <template #extra>用于认证的自定义请求头，格式为JSON</template>
-            </a-form-item>
+               <a-form-item label="Headers (JSON)" field="headers">
+                 <a-textarea
+                   v-model="formData.headers"
+                   placeholder='{"Authorization": "Bearer token", "Content-Type": "application/json"}'
+                   :auto-size="{ minRows: 4, maxRows: 8 }"
+                 />
+                 <template #extra>用于认证的自定义请求头，格式为JSON</template>
+               </a-form-item>
 
-            <a-form-item label="Cookies" field="cookies">
-              <a-textarea
-                v-model="formData.cookies"
-                placeholder="session_id=xxx; token=yyy"
-                :auto-size="{ minRows: 4, maxRows: 8 }"
-              />
-              <template #extra>用于认证的Cookie字符串</template>
-            </a-form-item>
-          </a-tab-pane>
+               <a-form-item label="Cookies" field="cookies">
+                 <a-textarea
+                   v-model="formData.cookies"
+                   placeholder="session_id=xxx; token=yyy"
+                   :auto-size="{ minRows: 4, maxRows: 8 }"
+                 />
+                 <template #extra>用于认证的 Cookie 字符串</template>
+               </a-form-item>
+             </template>
+
+             <a-alert v-else-if="formData.message_type === 2" type="info">
+               SMTP 服务器、发件账号和连接安全参数使用全局配置；此处无需再填写连接信息。
+             </a-alert>
+
+             <a-alert v-else type="info">
+               当前类型暂无额外高级配置。
+             </a-alert>
+           </a-tab-pane>
         </a-tabs>
 
         <a-form-item style="margin-top: 24px;">
@@ -344,11 +468,11 @@ onMounted(() => {
             <a-button html-type="submit" type="primary" :loading="loading">
               提交
             </a-button>
-            <a-button
-              v-if="isEditMode && taskId && formData.message_type === 1"
-              type="outline"
-              html-type="button"
-              :loading="testLoading"
+             <a-button
+               v-if="isEditMode && taskId && (formData.message_type === 1 || formData.message_type === 2)"
+               type="outline"
+               html-type="button"
+               :loading="testLoading"
               @click="handleTest"
             >
               发送测试
@@ -368,19 +492,27 @@ onMounted(() => {
             <a-descriptions-item label="消息类型">
               {{ formatMessageType(testResult.message_type) }}
             </a-descriptions-item>
-            <a-descriptions-item label="公众号名称">
-              {{ testResult.feed_name || '无' }}
-            </a-descriptions-item>
-            <a-descriptions-item label="目标 URL">
-              {{ testResult.result.request.url || '无' }}
-            </a-descriptions-item>
-            <a-descriptions-item label="响应结果">
-              {{ testResult.result.summary || (testResult.result.success ? '测试成功' : '测试失败') }}
-            </a-descriptions-item>
-          </a-descriptions>
+             <a-descriptions-item label="公众号名称">
+               {{ testResult.feed_name || '无' }}
+             </a-descriptions-item>
+             <a-descriptions-item label="目标地址">
+               {{ testResult.result.request.url || '无' }}
+             </a-descriptions-item>
+             <a-descriptions-item label="响应结果">
+               {{ testResult.result.summary || (testResult.result.success ? '测试成功' : '测试失败') }}
+             </a-descriptions-item>
+           </a-descriptions>
 
-          <a-form-item label="Payload" class="test-result-field">
-            <a-textarea
+           <a-form-item label="请求头 / 元数据" class="test-result-field">
+             <a-textarea
+               :model-value="getRequestHeadersText(testResult)"
+               readonly
+               :auto-size="{ minRows: 3, maxRows: 10 }"
+             />
+           </a-form-item>
+
+           <a-form-item label="Payload" class="test-result-field">
+             <a-textarea
               :model-value="formatDebugText(testResult.result.request.payload)"
               readonly
               :auto-size="{ minRows: 4, maxRows: 12 }"

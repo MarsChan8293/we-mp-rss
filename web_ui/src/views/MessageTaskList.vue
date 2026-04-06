@@ -87,6 +87,26 @@ const parseCronExpression = (exp: string) => {
   return result || exp
 }
 
+const getMessageTypeLabel = (messageType: number) => {
+  if (messageType === 1) {
+    return 'WebHook'
+  }
+  if (messageType === 2) {
+    return 'Email'
+  }
+  return 'Message'
+}
+
+const getMessageTypeColor = (messageType: number) => {
+  if (messageType === 1) {
+    return 'green'
+  }
+  if (messageType === 2) {
+    return 'arcoblue'
+  }
+  return 'red'
+}
+
 const router = useRouter()
 const loading = ref(false)
 const taskList = ref<MessageTask[]>([])
@@ -193,7 +213,11 @@ const runTask = async (id: number,isTest:boolean=false) => {
       onOk: async () => {
         try {
           let res = await TestMessageTask(id)
-          Message.success(res?.message||'测试成功')
+          if (res?.result?.success) {
+            Message.success(res?.message || res?.result?.summary || '测试成功')
+          } else {
+            Message.error(res?.result?.error || res?.result?.summary || '测试失败')
+          }
         } catch (error) {
           console.error(error)
           Message.error('测试失败')
@@ -269,8 +293,8 @@ onMounted(() => {
         </a-table-column>
         <a-table-column title="类型" :width="100">
           <template #cell="{ record }">
-            <a-tag :color="record.message_type === 1 ? 'green' : 'red'">
-              {{ record.message_type === 1 ? 'WeekHook' : 'Message' }}
+            <a-tag :color="getMessageTypeColor(record.message_type)">
+              {{ getMessageTypeLabel(record.message_type) }}
             </a-tag>
           </template>
         </a-table-column>
@@ -291,8 +315,8 @@ onMounted(() => {
           <template #description>
             <div>{{ parseCronExpression(item.cron_exp) }}</div>
             <div>
-              <a-tag :color="item.message_type === 1 ? 'green' : 'red'">
-                {{ item.message_type === 1 ? 'WeekHook' : 'Message' }}
+              <a-tag :color="getMessageTypeColor(item.message_type)">
+                {{ getMessageTypeLabel(item.message_type) }}
               </a-tag>
               <a-tag :color="item.status === 1 ? 'green' : 'red'">
                 {{ item.status === 1 ? '启用' : '禁用' }}

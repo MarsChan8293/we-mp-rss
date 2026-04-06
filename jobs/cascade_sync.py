@@ -160,6 +160,10 @@ class CascadeSyncService:
                         existing_task.status = task_data["status"]
                         existing_task.headers = task_data.get("headers", "")
                         existing_task.cookies = task_data.get("cookies", "")
+                        existing_task.email_to = task_data.get("email_to", "")
+                        existing_task.email_cc = task_data.get("email_cc", "")
+                        existing_task.email_subject_template = task_data.get("email_subject_template", "")
+                        existing_task.email_content_type = task_data.get("email_content_type", "text")
                         existing_task.updated_at = datetime.utcnow()
                     else:
                         # 创建新任务
@@ -174,6 +178,10 @@ class CascadeSyncService:
                             status=task_data["status"],
                             headers=task_data.get("headers", ""),
                             cookies=task_data.get("cookies", ""),
+                            email_to=task_data.get("email_to", ""),
+                            email_cc=task_data.get("email_cc", ""),
+                            email_subject_template=task_data.get("email_subject_template", ""),
+                            email_content_type=task_data.get("email_content_type", "text"),
                             created_at=datetime.utcnow(),
                             updated_at=datetime.utcnow()
                         )
@@ -342,6 +350,10 @@ class CascadeSyncService:
                 cron_exp=task_package.get("cron_exp", ""),
                 headers=task_package.get("headers", ""),
                 cookies=task_package.get("cookies", ""),
+                email_to=task_package.get("email_to", ""),
+                email_cc=task_package.get("email_cc", ""),
+                email_subject_template=task_package.get("email_subject_template", ""),
+                email_content_type=task_package.get("email_content_type", "text"),
                 status=0
             )
             print_info(f"创建临时任务对象: {task_name}")

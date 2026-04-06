@@ -24,6 +24,14 @@ class MessageTask(Base):
     headers = Column(Text, nullable=True)
     # 定义Cookie，用于认证
     cookies = Column(Text, nullable=True)
+    # 邮箱收件人，多个地址使用逗号分隔
+    email_to = Column(Text, nullable=True)
+    # 邮箱抄送人，多个地址使用逗号分隔
+    email_cc = Column(Text, nullable=True)
+    # 邮件主题模板
+    email_subject_template = Column(Text, nullable=True)
+    # 邮件正文类型，支持 text / html
+    email_content_type = Column(String(20), nullable=True)
     # 定义需要通知的微信公众号ID集合
     mps_id = Column(Text, nullable=False)
     # 定义 cron_exp 表达式

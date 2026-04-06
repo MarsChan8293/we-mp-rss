@@ -11,6 +11,7 @@ from core.config import cfg
 from bs4 import BeautifulSoup
 from core.content_format import format_content
 from core.notice.welink import send_welink_message
+from jobs.email_sender import send_email_message
 import re
 @dataclass
 class MessageWebHook:
@@ -384,6 +385,8 @@ def web_hook(hook:MessageWebHook, is_test:bool = False):
             return send_message(hook)
         elif hook.task.message_type == 1:  # 调用webhook
             return call_webhook(hook, is_test)
+        elif hook.task.message_type == 2:  # SMTP 邮箱
+            return send_email_message(hook, is_test)
         else:
             raise ValueError(f"未知的消息类型: {hook.task.message_type}")
     except Exception as e:
