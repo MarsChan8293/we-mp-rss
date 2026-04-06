@@ -3,6 +3,7 @@ from .dingtalk import send_dingtalk_message
 from .feishu import send_feishu_message
 from .custom import send_custom_message
 from .bark import send_bark_message
+from .welink import send_welink_message
 import re
 from urllib.parse import urlparse
 
@@ -50,6 +51,8 @@ def notice( webhook_url, title, text,notice_type: str=None):
         # 兼容企业本地化部署的飞书，如open.feishu.xxxx.com
         elif 'open.feishu.' in webhook_url:
             notice_type = 'feishu'
+        elif 'open.welink.huaweicloud.com' in webhook_url:
+            notice_type = 'welink'
         elif _is_bark_url(webhook_url):
             notice_type = 'bark'
         else:
@@ -61,6 +64,8 @@ def notice( webhook_url, title, text,notice_type: str=None):
         send_dingtalk_message(webhook_url, title, text)
     elif notice_type == 'feishu':
         send_feishu_message(webhook_url, title, text)
+    elif notice_type == 'welink':
+        send_welink_message(webhook_url, title, text)
     elif notice_type == 'bark':
         send_bark_message(webhook_url, title, text)
     elif notice_type == 'custom':

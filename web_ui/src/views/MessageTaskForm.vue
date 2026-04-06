@@ -2,8 +2,12 @@
 import { ref, onMounted, nextTick } from 'vue'
 const formRef = ref()
 import { useRoute, useRouter } from 'vue-router'
-import { getMessageTask, createMessageTask, updateMessageTask } from '@/api/messageTask'
-import type { MessageTaskCreate } from '@/types/messageTask'
+import { getMessageTask, createMessageTask, updateMessageTask, TestMessageTask } from '@/api/messageTask'
+import type {
+  MessageTaskCreate,
+  MessageTaskTestData,
+  MessageTaskTestRequest,
+} from '@/types/messageTask'
 import cronExpressionPicker from '@/components/CronExpressionPicker.vue'
 import MpMultiSelect from '@/components/MpMultiSelect.vue'
 import { Message } from '@arco-design/web-vue'
@@ -16,6 +20,8 @@ const taskId = ref<string | null>(null)
 const showCronPicker = ref(false)
 const showMpSelector = ref(false)
 const activeTab = ref('basic')
+const testLoading = ref(false)
+const testResult = ref<MessageTaskTestData | null>(null)
 
 const cronPickerRef = ref<InstanceType<typeof cronExpressionPicker> | null>(null)
 const mpSelectorRef = ref<InstanceType<typeof MpMultiSelect> | null>(null)
@@ -58,6 +64,101 @@ const fetchTaskDetail = async (id: string) => {
     })
   } finally {
     loading.value = false
+  }
+}
+
+const formatMessageType = (messageType: number) => {
+  if (messageType === 1) {
+    return '1 (WebHook)'
+  }
+  if (messageType === 0) {
+    return '0 (Message)'
+  }
+  return String(messageType)
+}
+
+const formatDebugText = (value: unknown, emptyText = '无') => {
+  if (value === null || value === undefined || value === '') {
+    return emptyText
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch (error) {
+    console.error(error)
+    return String(value)
+  }
+}
+
+const getResponseText = (result: MessageTaskTestData | null) => {
+  if (!result) {
+    return '无响应内容'
+  }
+  return formatDebugText(
+    result.result.response.raw_text ?? result.result.response.body,
+    '无响应内容'
+  )
+}
+
+const handleTest = async () => {
+  if (!taskId.value) return
+  if (!formData.value.web_hook_url) {
+    Message.error('请先填写 WebHook 地址')
+    return
+  }
+  if (formData.value.message_type !== 1) {
+    Message.error('当前仅支持 WebHook 类型测试')
+    return
+  }
+
+  testLoading.value = true
+  testResult.value = null
+  try {
+    const payload: MessageTaskTestRequest = {
+      name: formData.value.name,
+      message_type: formData.value.message_type,
+      message_template: formData.value.message_template,
+      web_hook_url: formData.value.web_hook_url,
+      headers: formData.value.headers || '',
+      cookies: formData.value.cookies || '',
+      mps_id: JSON.stringify(formData.value.mps_id || []),
+    }
+    testResult.value = await TestMessageTask(taskId.value, payload)
+    if (testResult.value.result.success) {
+      Message.success(testResult.value.result.summary || '测试成功')
+    } else {
+      Message.error(testResult.value.result.error || testResult.value.result.summary || '测试失败')
+    }
+  } catch (error) {
+    console.error(error)
+    testResult.value = {
+      task_id: taskId.value,
+      task_name: formData.value.name,
+      message_type: formData.value.message_type,
+      feed_name: '未返回',
+      result: {
+        success: false,
+        summary: '测试请求失败',
+        request: {
+          url: formData.value.web_hook_url,
+          message_type: formData.value.message_type,
+          headers: {},
+          cookies: null,
+          payload: '',
+        },
+        response: {
+          status_code: null,
+          body: null,
+          raw_text: null,
+        },
+        error: String(error || '测试失败'),
+      },
+    }
+    Message.error(String(error || '测试失败'))
+  } finally {
+    testLoading.value = false
   }
 }
 
@@ -243,9 +344,65 @@ onMounted(() => {
             <a-button html-type="submit" type="primary" :loading="loading">
               提交
             </a-button>
+            <a-button
+              v-if="isEditMode && taskId && formData.message_type === 1"
+              type="outline"
+              html-type="button"
+              :loading="testLoading"
+              @click="handleTest"
+            >
+              发送测试
+            </a-button>
             <a-button @click="router.go(-1)">取消</a-button>
           </a-space>
         </a-form-item>
+
+        <a-card v-if="testResult" title="测试结果" class="test-result-panel">
+          <a-descriptions :column="1" bordered>
+            <a-descriptions-item label="任务 ID">
+              {{ testResult.task_id || '无' }}
+            </a-descriptions-item>
+            <a-descriptions-item label="任务名称">
+              {{ testResult.task_name || '无' }}
+            </a-descriptions-item>
+            <a-descriptions-item label="消息类型">
+              {{ formatMessageType(testResult.message_type) }}
+            </a-descriptions-item>
+            <a-descriptions-item label="公众号名称">
+              {{ testResult.feed_name || '无' }}
+            </a-descriptions-item>
+            <a-descriptions-item label="目标 URL">
+              {{ testResult.result.request.url || '无' }}
+            </a-descriptions-item>
+            <a-descriptions-item label="响应结果">
+              {{ testResult.result.summary || (testResult.result.success ? '测试成功' : '测试失败') }}
+            </a-descriptions-item>
+          </a-descriptions>
+
+          <a-form-item label="Payload" class="test-result-field">
+            <a-textarea
+              :model-value="formatDebugText(testResult.result.request.payload)"
+              readonly
+              :auto-size="{ minRows: 4, maxRows: 12 }"
+            />
+          </a-form-item>
+
+          <a-form-item label="响应内容" class="test-result-field">
+            <a-textarea
+              :model-value="getResponseText(testResult)"
+              readonly
+              :auto-size="{ minRows: 4, maxRows: 12 }"
+            />
+          </a-form-item>
+
+          <a-form-item label="错误信息" class="test-result-field">
+            <a-textarea
+              :model-value="formatDebugText(testResult.result.error, '无')"
+              readonly
+              :auto-size="{ minRows: 3, maxRows: 10 }"
+            />
+          </a-form-item>
+        </a-card>
       </a-form>
 
       <!-- cron表达式选择器模态框 -->
@@ -292,5 +449,13 @@ onMounted(() => {
 h2 {
   margin-bottom: 20px;
   color: var(--color-text-1);
+}
+
+.test-result-panel {
+  margin-top: 24px;
+}
+
+.test-result-field {
+  margin-top: 16px;
 }
 </style>

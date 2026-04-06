@@ -15,8 +15,20 @@ from core.auth import get_current_user_or_ak
 from core.db import DB
 from core.models.message_task import MessageTask
 from .base import success_response, error_response
+from .message_task_test_helpers import build_test_task_from_request
 
 router = APIRouter(prefix="/message_tasks", tags=["消息任务"])
+
+
+class MessageTaskTestRequest(BaseModel):
+    name: Optional[str] = None
+    message_type: Optional[int] = None
+    message_template: Optional[str] = None
+    web_hook_url: Optional[str] = None
+    headers: Optional[str] = None
+    cookies: Optional[str] = None
+    mps_id: Optional[str] = None
+
 
 @router.get("", summary="获取消息任务列表")
 async def list_message_tasks(
@@ -93,6 +105,7 @@ async def get_message_task(
 @router.post("/message/test/{task_id}", summary="测试消息")
 async def test_message_task(
     task_id: str,
+    request_data: Optional[MessageTaskTestRequest] = Body(None),
     current_user: dict = Depends(get_current_user_or_ak)
 ):
     db=DB.get_session()
@@ -113,11 +126,22 @@ async def test_message_task(
         message_task = db.query(MessageTask).filter(MessageTask.id == task_id).first()
         if not message_task:
             raise HTTPException(status_code=404, detail="Message task not found")
-        
+
+        request_overrides = None
+        if request_data is not None:
+            if hasattr(request_data, "model_dump"):
+                request_overrides = request_data.model_dump(exclude_unset=True)
+            else:
+                request_overrides = request_data.dict(exclude_unset=True)
+
+        test_task = build_test_task_from_request(message_task, request_overrides)
+        if test_task.message_type != 1:
+            return error_response(code=400, message="当前仅支持 WebHook 类型测试")
+
         # 获取第一个订阅号进行测试
         from jobs.mps import get_feeds
         import json
-        feeds = get_feeds(message_task)
+        feeds = get_feeds(test_task)
         
         if not feeds or len(feeds) == 0:
             return error_response(code=400, message="没有可用的订阅号进行测试")
@@ -143,7 +167,7 @@ async def test_message_task(
         from jobs.webhook import MessageWebHook, web_hook
         # 使用类型忽略注释，因为web_hook函数会处理字典和Article对象
         test_hook = MessageWebHook(  # type: ignore
-            task=message_task,
+            task=test_task,
             feed=feed,
             articles=mock_articles  # type: ignore
         )
@@ -153,8 +177,9 @@ async def test_message_task(
         return success_response(
             data={
                 "task_id": task_id,
+                "task_name": test_task.name,
+                "message_type": test_task.message_type,
                 "feed_name": feed.mp_name,
-                "test_article": mock_articles[0],
                 "result": result
             },
             message=f"测试消息已发送到 {feed.mp_name}"

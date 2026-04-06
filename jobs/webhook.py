@@ -10,6 +10,7 @@ from core.log import logger
 from core.config import cfg
 from bs4 import BeautifulSoup
 from core.content_format import format_content
+from core.notice.welink import send_welink_message
 import re
 @dataclass
 class MessageWebHook:
@@ -55,7 +56,23 @@ def send_message(hook: MessageWebHook) -> str:
         raise ValueError(f"发送消息失败: {e}")
     return message
 
-def call_webhook(hook: MessageWebHook, is_test: bool = False) -> str:
+def _build_debug_result(success, summary, url, message_type, headers, cookies, payload, response=None, error=None):
+    return {
+        "success": success,
+        "summary": summary,
+        "request": {
+            "url": url,
+            "message_type": message_type,
+            "headers": headers,
+            "cookies": cookies,
+            "payload": payload,
+        },
+        "response": response or {"status_code": None, "body": None, "raw_text": None},
+        "error": error,
+    }
+
+
+def call_webhook(hook: MessageWebHook, is_test: bool = False):
     """
     调用webhook接口发送数据
 
@@ -64,7 +81,7 @@ def call_webhook(hook: MessageWebHook, is_test: bool = False) -> str:
         is_test: 是否为测试模式，测试模式下使用模拟数据
 
     返回:
-        str: 调用结果信息
+        str | dict | None: 非测试模式返回调用结果，测试模式返回调试信息
 
     异常:
         ValueError: 当webhook调用失败时抛出
@@ -164,6 +181,19 @@ def call_webhook(hook: MessageWebHook, is_test: bool = False) -> str:
 
     # 检查web_hook_url是否为空
     if not hook.task.web_hook_url:
+        debug_result = _build_debug_result(
+            False,
+            "Webhook调用失败",
+            "",
+            hook.task.message_type,
+            {"Content-Type": "application/json"},
+            None,
+            "",
+            None,
+            "web_hook_url为空",
+        )
+        if is_test:
+            return debug_result
         logger.error("web_hook_url为空")
         return
     # 发送webhook请求
@@ -190,18 +220,98 @@ def call_webhook(hook: MessageWebHook, is_test: bool = False) -> str:
                 key, value = cookie_pair.split('=', 1)
                 cookies[key.strip()] = value.strip()
 
-    # print_success(f"发送webhook请求{payload}")
+    if is_test and 'open.welink.huaweicloud.com' in hook.task.web_hook_url:
+        welink_debug = send_welink_message(
+            hook.task.web_hook_url,
+            hook.task.name,
+            payload,
+            return_debug=True,
+        )
+        return _build_debug_result(
+            welink_debug["error"] is None,
+            "Webhook调用成功(WeLink)" if welink_debug["error"] is None else "Webhook调用失败(WeLink)",
+            hook.task.web_hook_url,
+            hook.task.message_type,
+            welink_debug["headers"],
+            None,
+            welink_debug["payload"],
+            {
+                "status_code": welink_debug["status_code"],
+                "body": welink_debug["body"],
+                "raw_text": welink_debug["raw_text"],
+            },
+            welink_debug["error"],
+        )
+
+    if 'open.welink.huaweicloud.com' in hook.task.web_hook_url:
+        try:
+            welink_result = send_welink_message(
+                hook.task.web_hook_url,
+                hook.task.name,
+                payload,
+            )
+        except Exception as exc:
+            raise ValueError(f"Webhook调用失败(WeLink): {exc}")
+        if not welink_result:
+            raise ValueError("Webhook调用失败(WeLink): WeLink消息发送失败")
+        return welink_result
+
+    response = None
     try:
         response = requests.post(
             hook.task.web_hook_url,
             data=payload,
             headers=headers,
-            cookies=cookies
+            cookies=cookies,
         )
+        try:
+            parsed_body = response.json()
+        except ValueError:
+            parsed_body = None
         response.raise_for_status()
-        return "Webhook调用成功"
-    except Exception as e:
-        raise ValueError(f"Webhook调用失败: {str(e)}")
+        debug_result = _build_debug_result(
+            True,
+            "Webhook调用成功",
+            hook.task.web_hook_url,
+            hook.task.message_type,
+            headers,
+            cookies,
+            payload,
+            {
+                "status_code": response.status_code,
+                "body": parsed_body,
+                "raw_text": response.text,
+            },
+            None,
+        )
+    except Exception as exc:
+        parsed_body = None
+        if response is not None:
+            try:
+                parsed_body = response.json()
+            except ValueError:
+                parsed_body = None
+        debug_result = _build_debug_result(
+            False,
+            "Webhook调用失败",
+            hook.task.web_hook_url,
+            hook.task.message_type,
+            headers,
+            cookies,
+            payload,
+            {
+                "status_code": getattr(response, "status_code", None),
+                "body": parsed_body,
+                "raw_text": getattr(response, "text", None),
+            },
+            str(exc),
+        )
+        if is_test:
+            return debug_result
+        raise ValueError(f"Webhook调用失败: {debug_result['error']}")
+    if is_test:
+        return debug_result
+    return debug_result["summary"]
 
 def web_hook(hook:MessageWebHook, is_test:bool = False):
     """
